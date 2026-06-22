@@ -1,342 +1,131 @@
 import streamlit as st
-import time
-from sentence_transformers import SentenceTransformer
-import chromadb
+import os
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
+from dotenv import load_dotenv
+import time
 
-# ══════════════════════════════════════
-# CONFIG
-# ══════════════════════════════════════
+# 1. CẤU HÌNH TRANG WEB STREAMLIT
 st.set_page_config(
-    page_title="UEH Thesis Knowledge",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Trợ Lý Ảo Pháp Luật Việt Nam",
+    page_icon="⚖️",
+    layout="wide"
 )
 
-# ══════════════════════════════════════
-# CSS — Sửa lỗi chữ trắng trên nền trắng
-# ══════════════════════════════════════
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400&family=Instrument+Sans:wght@300;400;500&display=swap');
+st.title("⚖️ Trợ Lý Ảo Pháp Luật Việt Nam")
+st.caption("🚀 Hệ thống RAG tìm kiếm, sửa lỗi OCR và trả lời tự động dựa trên kho dữ liệu pháp luật toàn văn")
 
-/* Hide Streamlit default UI */
-#MainMenu, footer, header {visibility: hidden}
-.stDeployButton {display: none}
-
-/* Root colors */
-:root {
-    --teal: #005f69;
-    --orange: #f26f33;
-    --white: #ffffff;
-    --paper: #f4f1ec;
-}
-
-/* App background */
-.stApp {background: #f4f1ec !important}
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-    background: #005f69 !important;
-    border-right: none !important;
-}
-[data-testid="stSidebar"] * {color: rgba(255,255,255,0.75) !important}
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
-    color: #ffffff !important;
-    font-family: "Cormorant Garamond", serif !important;
-}
-
-/* === SỬA LỖI HIỂN THỊ CHAT MẶC ĐỊNH === */
-/* Bong bóng chat chung (Mặc định cho Assistant) */
-[data-testid="stChatMessage"] {
-    background: #ffffff !important;
-    border: 1px solid rgba(0,95,105,0.1) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 2px 12px rgba(0,95,105,0.06) !important;
-}
-/* Ép TẤT CẢ thành phần chữ (p, li, span,...) của Chatbot thành màu xám đen để rõ trên nền trắng */
-[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] * {
-    color: #222222 !important;
-}
-
-/* Bong bóng chat của Người dùng (User) */
-[data-testid="stChatMessage"][data-testid*="user"] {
-    background: #005f69 !important;
-}
-/* Ép TẤT CẢ thành phần chữ của Người dùng thành màu TRẮNG để nổi bật trên nền xanh */
-[data-testid="stChatMessage"][data-testid*="user"] [data-testid="stMarkdownContainer"] * {
-    color: #ffffff !important;
-}
-
-/* Input box */
-[data-testid="stChatInput"] textarea {
-    background: #ffffff !important;
-    border: 1.5px solid rgba(0,95,105,0.15) !important;
-    border-radius: 12px !important;
-    font-family: "Instrument Sans", sans-serif !important;
-    font-size: 14px !important;
-    color: #222222 !important;
-}
-[data-testid="stChatInput"] textarea:focus {
-    border-color: #005f69 !important;
-    box-shadow: 0 0 0 3px rgba(0,95,105,0.08) !important;
-}
-
-/* Send button */
-[data-testid="stChatInput"] button {
-    background: #005f69 !important;
-    border-radius: 8px !important;
-}
-
-/* Metrics */
-[data-testid="stMetric"] {
-    background: rgba(255,255,255,0.08) !important;
-    border-radius: 8px !important;
-    padding: 8px 12px !important;
-}
-
-/* Spinner */
-.stSpinner > div {border-top-color: #f26f33 !important}
-
-/* Source tags */
-.source-tag {
-    display: inline-block;
-    padding: 2px 8px;
-    background: rgba(0,95,105,0.08);
-    border: 1px solid rgba(0,95,105,0.15);
-    border-radius: 4px;
-    font-family: "DM Mono", monospace;
-    font-size: 11px;
-    color: #005f69;
-    margin: 2px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════
-# LOAD MODELS (cache để không reload)
-# ══════════════════════════════════════
+# 2. KHỞI TẠO HỆ THỐNG CACHING
 @st.cache_resource
-def load_embedding_model():
-    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-
-@st.cache_resource
-def load_chromadb():
-    DB_PATH = "./chroma_db"
-    client = chromadb.PersistentClient(path=DB_PATH)
-    return client.get_or_create_collection(
-        name="thesis_knowledge",
-        metadata={"hnsw:space": "cosine"}
+def init_rag_system():
+    load_dotenv(override=True)
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        model_kwargs={'device': 'cpu'}
     )
+    if not os.path.exists("kho_vector_phap_luat"):
+        return None, None, "❌ Không tìm thấy thư mục 'kho_vector_phap_luat'!"
+    vector_db = FAISS.load_local("kho_vector_phap_luat", embeddings, allow_dangerous_deserialization=True)
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None, None, "❌ Thiếu biến GEMINI_API_KEY trong file .env hoặc hệ thống!"
+    client = genai.Client(api_key=api_key)
+    return vector_db, client, "✅ Hệ thống RAG đã sẵn sàng!"
 
-@st.cache_resource
-def load_gemini():
-    import os
-    api_key = "AIzaSyAfi_-o2ojDAJ1JitL2VCnIb2Ita8Tq6TA"
-    return genai.Client(api_key=api_key)
+vector_db, client, status_msg = init_rag_system()
 
-
-# ══════════════════════════════════════
-# RAG FUNCTION
-# ══════════════════════════════════════
-def rag_query(question, chat_history, n_results=5):
-    embedding_model = load_embedding_model()
-    collection = load_chromadb()
-    client = load_gemini()
-
-    # Embed câu hỏi
-    q_vec = embedding_model.encode(question).tolist()
-
-    # Tìm chunks
-    results = collection.query(query_embeddings=[q_vec], n_results=n_results)
-    chunks = results["documents"][0]
-    metas = results["metadatas"][0]
-
-    # Tạo knowledge context
-    knowledge = ""
-    sources = []
-    for i, (chunk, meta) in enumerate(zip(chunks, metas)):
-        knowledge += f"\n[Đoạn {i+1}] {meta['source']} - Trang {meta['page']}\n{chunk}\n"
-        sources.append(f"{meta['source']} · Trang {meta['page']}")
-
-    # Tạo conversation context (30 lượt gần nhất)
-    conv = ""
-    if chat_history:
-        conv = "\n=== LỊCH SỬ HỘI THOẠI ===\n"
-        for h in chat_history[-30:]:
-            conv += f"Người dùng: {h['role'] == 'user' and h['content'] or ''}\n"
-            conv += f"Trợ lý: {h['role'] == 'assistant' and h['content'] or ''}\n"
-        conv += "=== KẾT THÚC ===\n"
-
-    # Prompt
-    prompt = f"""Bạn là trợ lý nghiên cứu học thuật của UEH.
-{conv}
-=== TRI THỨC TỪ LUẬN VĂN ===
-{knowledge}
-=== KẾT THÚC ===
-
-Câu hỏi: {question}
-
-Yêu cầu:
-- Trả lời ĐẦY ĐỦ, CHI TIẾT, có cấu trúc rõ ràng
-- Dùng thông tin từ luận văn, bổ sung kiến thức nền nếu cần
-- Nếu câu hỏi liên quan câu trước, khai thác lịch sử hội thoại
-- Trả lời tiếng Việt, trừ khi user hỏi tiếng Anh
-- Ghi rõ nguồn trích dẫn cuối câu trả lời
-"""
-
-    # Gọi Gemini
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=8192,
-                    temperature=0.3,
-                )
-            )
-            return response.text, list(set(sources))
-        except Exception as e:
-            if "503" in str(e) or "429" in str(e):
-                time.sleep((attempt + 1) * 10)
-            else:
-                return f"Lỗi: {e}", []
-
-    return "Server không phản hồi, thử lại sau.", []
-
-
-# ══════════════════════════════════════
-# SIDEBAR
-# ══════════════════════════════════════
 with st.sidebar:
-    st.markdown("""
-    <div style="padding:8px 0 20px">
-      <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:#fff;margin-bottom:4px">
-        Thesis Knowledge
-      </div>
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:.15em">
-        UEH · RAG SYSTEM
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.header("⚙️ Cấu Hình Hệ Thống")
+    st.info(status_msg)
 
-    # Stats
-    collection = load_chromadb()
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Luận văn", "3")
-    col2.metric("Chunks", collection.count())
-    col3.metric("Câu hỏi", len(st.session_state.get("messages", [])) // 2)
+if vector_db is None or client is None:
+    st.error("Vui lòng kiểm tra lại cấu hình hệ thống.")
+    st.stop()
 
-    st.divider()
-
-    # Model info
-    st.markdown("""
-    <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:.1em;margin-bottom:8px">
-    MÔ HÌNH ĐANG DÙNG
-    </div>
-    """, unsafe_allow_html=True)
-    st.caption("🟠 LLM: gemini-2.5-flash")
-    st.caption("🟠 Embed: multilingual-MiniLM-L12-v2")
-    st.caption("🟠 VectorDB: ChromaDB")
-
-    st.divider()
-
-    # Clear button
-    if st.button("🗑 Xóa lịch sử", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-
-    # Context info
-    msg_count = len(st.session_state.get("messages", []))
-    if msg_count > 0:
-        ctx = min(msg_count // 2, 30)
-        st.markdown(f"""
-        <div style="margin-top:12px;padding:6px 10px;background:rgba(242,111,51,0.15);border-radius:6px;font-size:11px;color:rgba(255,255,255,0.6);font-family:DM Mono,monospace">
-        🧠 Context: {ctx}/30 lượt
-        </div>
-        """, unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════
-# MAIN CHAT
-# ══════════════════════════════════════
-st.markdown("""
-<div style="padding:0 0 20px">
-  <span style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:400;color:#005f69">
-    Trợ lý <i>nghiên cứu</i>
-  </span>
-  &nbsp;
-  <span style="font-family:DM Mono,monospace;font-size:10px;padding:3px 8px;background:rgba(0,95,105,0.08);color:#005f69;border-radius:20px;border:1px solid rgba(0,95,105,0.12)">
-    RAG · Luận văn UEH
-  </span>
-</div>
-""", unsafe_allow_html=True)
-
-# Init session
+# 3. QUẢN LÝ LỊCH SỬ CHAT
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý ảo chuyên gia Pháp luật Việt Nam. Bạn cần tôi tra cứu hoặc giải đáp điều luật nào hôm nay?"}
+    ]
 
-# Welcome state
-if not st.session_state.messages:
-    st.markdown("""
-    <div style="text-align:center;padding:60px 20px">
-      <div style="font-family:Cormorant Garamond,serif;font-size:42px;font-weight:300;color:#005f69;line-height:1.2;margin-bottom:12px">
-        Khám phá <i><b>tri thức</b></i><br>từ luận văn UEH
-      </div>
-      <div style="color:#999;font-size:14px;max-width:400px;margin:0 auto;line-height:1.65">
-        Tìm kiếm, tổng hợp và kế thừa tri thức từ kho luận văn học thuật.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Suggestion chips
-    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        if st.button("🤖 AI trong giáo dục?"):
-            st.session_state.prefill = "AI ứng dụng trong giáo dục như thế nào?"
-    with c2:
-        if st.button("📊 Phương pháp định tính?"):
-            st.session_state.prefill = "Phương pháp nghiên cứu định tính là gì?"
-    with c3:
-        if st.button("🔬 Machine learning?"):
-            st.session_state.prefill = "Machine learning ứng dụng trong phân tích dữ liệu?"
-    with c4:
-        if st.button("📈 Chuyển đổi số?"):
-            st.session_state.prefill = "Chuyển đổi số trong doanh nghiệp Việt Nam?"
-    st.markdown("</div>", unsafe_allow_html=True)
+# 4. HÀM XỬ LÝ TRUY VẤN RAG TỐI ƯU CÂN BẰNG
+def process_rag_query(query):
+    try:
+        # Tìm kiếm 3 mảnh tương đồng nhất
+        docs_and_scores = vector_db.similarity_search_with_score(query, k=3)
+        context_parts = []
+        sources = []
+        for doc, score in docs_and_scores:
+            context_parts.append(doc.page_content)
+            sources.append((doc, score)) # Lưu cả Object Document và Score độ khớp
 
-# Hiển thị messages
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if "sources" in msg and msg["sources"]:
-            srcs_html = " ".join([f'<span class="source-tag">📄 {s}</span>' for s in msg["sources"]])
-            st.markdown(f'<div style="margin-top:8px">{srcs_html}</div>', unsafe_allow_html=True)
+        context_text = "\n\n-------------------------\n\n".join(context_parts)
 
-# Chat input
-if question := st.chat_input("Hỏi về nội dung luận văn..."):
-    # User message
-    st.session_state.messages.append({"role": "user", "content": question})
+        # PROMPT CÂN BẰNG CAO CẤP: Ép sửa lỗi font OCR và xử lý thông tin chuẩn xác
+        prompt_template = f'''Bạn là một chuyên gia tư vấn pháp luật chính xác và chuyên nghiệp tại Việt Nam.
+Hãy sử dụng 'NGỮ CẢNH PHÁP LÝ' dưới đây để trả lời 'CÂU HỎI NGƯỜI DÙNG'.
+
+⚠️ QUY TẮC DIỄN ĐẠT CHÍ MẠNG:
+1. Trình bày câu trả lời đầy đủ, rõ ràng bằng các dấu đầu dòng. Tuyệt đối không dừng câu giữa chừng, không viết cụt ngủn.
+2. Nếu các con số hoặc câu từ trong 'NGỮ CẢNH PHÁP LÝ' bị thiếu chữ, dính từ hoặc sai chính tả do lỗi quét ảnh OCR (Ví dụ: 'Bộ Bộ nghiệp và Môi trường' thực chất là 'Bộ Nông nghiệp và Phát triển nông thôn', 'Nghị quyệt' là 'Nghị quyết', 'Điêu' là 'Điều'), hãy tự động hoàn thiện và chuẩn hóa nó một cách hợp lý theo chuẩn văn bản pháp luật khi trả lời.
+3. Tuyệt đối KHÔNG tự bịa ra các thông tin, điều khoản không có thật nếu ngữ cảnh không nhắc tới.
+4. Chỉ từ chối nếu ngữ cảnh hoàn toàn không liên quan đến chủ đề câu hỏi.
+
+[NGỮ CẢNH PHÁP LÝ]:
+{context_text}
+
+[CÂU HỎI NGƯỜI DÙNG]:
+{query}
+
+Trả lời:'''
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_template,
+                    config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=2500)
+                )
+                return response.text, sources
+            except APIError as api_err:
+                if api_err.code == 503 and attempt < max_retries - 1:
+                    time.sleep(2)
+                    continue
+                else:
+                    raise api_err
+    except Exception as e:
+        return f"❌ Lỗi xử lý hệ thống: {e}", []
+
+# 5. KHUNG NHẬP CÂU HỎI VÀ HIỂN THỊ KẾT QUẢ ĐA TẦNG METADATA
+if user_query := st.chat_input("Nhập câu hỏi pháp luật tại đây..."):
     with st.chat_message("user"):
-        st.markdown(question)
+        st.markdown(user_query)
+    st.session_state.messages.append({"role": "user", "content": user_query})
 
-    # Bot response
     with st.chat_message("assistant"):
-        with st.spinner("Đang tìm kiếm trong kho luận văn..."):
-            answer, sources = rag_query(question, st.session_state.messages)
-        st.markdown(answer)
-        if sources:
-            srcs_html = " ".join([f'<span class="source-tag">📄 {s}</span>' for s in sources])
-            st.markdown(f'<div style="margin-top:8px">{srcs_html}</div>', unsafe_allow_html=True)
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
-            "sources": sources
-        })
+        with st.spinner("⚖️ Đang tổng hợp câu trả lời..."):
+            bot_answer, bot_sources = process_rag_query(user_query)
+            st.markdown(bot_answer)
+
+            # ĐÚNG CHUẨN ĐỒ ÁN: Render giao diện hiển thị nguồn trích dẫn phân cấp rõ ràng
+            if bot_sources:
+                with st.expander("📚 Xem nguồn trích dẫn gốc (Hệ thống Metadata nâng cao)"):
+                    for idx, (doc, score) in enumerate(bot_sources):
+                        meta = doc.metadata
+                        st.markdown(f"**Nguồn {idx+1}:** {meta.get('title', 'Văn bản không rõ tên')}")
+                        st.markdown(f"- **Số hiệu:** `{meta.get('so_hieu', 'N/A')}` | **Cơ quan ban hành:** {meta.get('co_quan_ban_hanh', 'N/A')} | **Loại văn bản:** {meta.get('loai_van_ban', 'N/A')}")
+                        st.markdown(f"- **Độ tương đồng Vector:** Khoảng cách score `{score:.2f}`")
+                        st.markdown(f"- [Xem văn bản gốc trực tuyến trên Web Chính Phủ]({meta.get('source_url', '#')})")
+                        st.text_area(f"Đoạn văn bản gốc từ file OCR (Mảnh {idx+1})", doc.page_content, height=100)
+                        st.markdown("---")
+
+    # Lưu câu trả lời của trợ lý ảo vào lịch sử phiên làm việc
+    st.session_state.messages.append({"role": "assistant", "content": bot_answer})
