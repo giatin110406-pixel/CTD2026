@@ -1,0 +1,15 @@
+# ==========================================
+# FILE .GITIGNORE RÚT GỌN CHO THESIS CHATBOT
+# ==========================================
+
+# 1. Bảo mật API Key (Bắt buộc ẩn để tránh lộ key)
+.env
+*.env
+
+# 2. Thư mục thư viện Frontend (Nặng hàng trăm MB, bắt buộc ẩn)
+node_modules/
+dist/
+
+# 3. File rác hệ thống tự sinh ra khi chạy Python (Nên ẩn cho sạch code)
+__pycache__/
+*.pyc
