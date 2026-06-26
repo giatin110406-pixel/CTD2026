@@ -9,31 +9,33 @@ function PdfViewer({ pdfUrl, onClose }) {
     const fileName = pdfUrl ? decodeURIComponent(pdfUrl.split('/').pop()) : 'Tài liệu.pdf'
 
     // Styles
-    const containerStyle = {
+        const containerStyle = {
         width: '480px',
-        borderLeft: '1px solid #e2e8f0',
+        border: '1px solid rgba(122, 117, 107, 0.2)',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#F2EAE0',
         height: '100%',
-        boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.05)',
+        boxShadow: '0 4px 30px rgba(122, 117, 107, 0.02), 0 10px 50px rgba(122, 117, 107, 0.05)',
         flexShrink: 0,
-        animation: 'slideIn 0.3s ease',
+        animation: 'slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        borderRadius: '32px',
+        overflow: 'hidden',
     }
 
     const headerStyle = {
-        padding: '16px 20px',
-        borderBottom: '1px solid #e2e8f0',
+        padding: '20px 24px',
+        borderBottom: '1px solid rgba(122, 117, 107, 0.2)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#ffffff',
+        backgroundColor: '#F2EAE0',
     }
 
     const titleStyle = {
-        fontFamily: "'Outfit', sans-serif",
-        fontWeight: 600,
-        color: '#1e293b',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontWeight: 700,
+        color: '#2C2A27',
         fontSize: '15px',
         display: 'flex',
         alignItems: 'center',
@@ -53,21 +55,21 @@ function PdfViewer({ pdfUrl, onClose }) {
     const actionButtonStyle = (isHovered) => ({
         background: 'none',
         border: 'none',
-        width: '32px',
-        height: '32px',
+        width: '36px',
+        height: '36px',
         borderRadius: '50%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        color: '#64748b',
-        backgroundColor: isHovered ? '#f1f5f9' : 'transparent',
+        color: isHovered ? '#2C2A27' : '#7A756B',
+        backgroundColor: isHovered ? '#FAF6EE' : 'transparent',
         transition: 'all 0.2s ease',
     })
 
     const iframeContainerStyle = {
         flex: 1,
-        padding: '16px',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
     }
@@ -75,10 +77,10 @@ function PdfViewer({ pdfUrl, onClose }) {
     const iframeStyle = {
         width: '100%',
         height: '100%',
-        border: '1px solid #cbd5e1',
-        borderRadius: '12px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-        backgroundColor: '#ffffff',
+        border: '1px solid rgba(122, 117, 107, 0.2)',
+        borderRadius: '24px',
+        boxShadow: '0 4px 12px rgba(122,117,107,0.02)',
+        backgroundColor: '#FAF6EE',
     }
 
     const handleExternalOpen = () => {
@@ -90,7 +92,12 @@ function PdfViewer({ pdfUrl, onClose }) {
             {/* Header của cột PDF */}
             <div style={headerStyle}>
                 <span style={titleStyle} title={fileName}>
-                    <FileText size={18} style={{ color: '#1a73e8', flexShrink: 0 }} />
+                    <FileText 
+                        size={18} 
+                        strokeWidth={1.5} 
+                        fill="#2C2A27" 
+                        style={{ color: '#2C2A27', flexShrink: 0 }} 
+                    />
                     {fileName}
                 </span>
                 
@@ -103,7 +110,7 @@ function PdfViewer({ pdfUrl, onClose }) {
                         onMouseLeave={() => setHoveredExternal(false)}
                         title="Mở trong tab mới"
                     >
-                        <ExternalLink size={16} />
+                        <ExternalLink size={16} strokeWidth={2.5} />
                     </button>
 
                     {/* Nút đóng */}
@@ -114,7 +121,7 @@ function PdfViewer({ pdfUrl, onClose }) {
                         onMouseLeave={() => setHoveredClose(false)}
                         title="Đóng trình xem"
                     >
-                        <X size={18} />
+                        <X size={18} strokeWidth={2.5} />
                     </button>
                 </div>
             </div>

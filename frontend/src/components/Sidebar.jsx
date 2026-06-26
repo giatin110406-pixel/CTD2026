@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { Menu, Plus, HelpCircle, History, Settings, FileText } from 'lucide-react'
+import { Menu, Plus, HelpCircle, History, Settings, FileText, GraduationCap, MessageSquare } from 'lucide-react'
 
-function Sidebar({ onSelectPdf, currentPdf }) {
+function Sidebar({ onSelectPdf, currentPdf, currentView, onChangeView }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [hoveredDocId, setHoveredDocId] = useState(null)
     const [hoveredIcon, setHoveredIcon] = useState(null)
@@ -17,48 +17,52 @@ function Sidebar({ onSelectPdf, currentPdf }) {
     }
 
     // Styles
-    const containerStyle = {
+        const containerStyle = {
         display: 'flex',
         height: '100%',
-        borderRight: '1px solid #e2e8f0',
-        backgroundColor: '#ffffff',
-        transition: 'width 0.3s ease',
-        width: isCollapsed ? '64px' : '320px',
+        borderRadius: '32px',
+        border: '1px solid rgba(122, 117, 107, 0.2)',
+        backgroundColor: '#F2EAE0',
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        width: isCollapsed ? '76px' : '340px',
         userSelect: 'none',
+        boxShadow: '0 4px 30px rgba(122, 117, 107, 0.02), 0 10px 50px rgba(122, 117, 107, 0.05)',
+        overflow: 'hidden',
     }
 
     const iconStripStyle = {
-        width: '64px',
-        backgroundColor: '#f0f4f9',
+        width: '76px',
+        backgroundColor: '#F2EAE0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '20px 0',
+        padding: '24px 0',
         flexShrink: 0,
-        borderRight: '1px solid #e2e8f0',
+        borderRight: '1px solid rgba(122, 117, 107, 0.2)',
     }
 
-    const iconButtonStyle = (iconName, isSpecial = false) => ({
-        width: '40px',
-        height: '40px',
+    const iconButtonStyle = (iconName, isActive = false) => ({
+        width: '44px',
+        height: '44px',
         borderRadius: '50%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        color: '#444746',
-        backgroundColor: isSpecial 
-            ? (hoveredIcon === iconName ? '#e8eef6' : '#dde3ea') 
-            : (hoveredIcon === iconName ? '#e2e8f0' : 'transparent'),
-        transition: 'all 0.2s ease',
+        color: isActive ? '#ffffff' : '#2C2A27',
+        backgroundColor: isActive 
+            ? '#2C2A27' 
+            : (hoveredIcon === iconName ? '#FAF6EE' : 'transparent'),
+        border: isActive ? '1px solid #FFD000' : '1px solid transparent',
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         marginBottom: '16px',
-        boxShadow: isSpecial ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+        position: 'relative',
     })
 
     const contentPanelStyle = {
         flex: 1,
-        padding: '24px 16px',
+        padding: '24px 20px',
         display: isCollapsed ? 'none' : 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -67,8 +71,8 @@ function Sidebar({ onSelectPdf, currentPdf }) {
     const headerStyle = {
         fontFamily: "'Outfit', sans-serif",
         fontSize: '18px',
-        fontWeight: 600,
-        color: '#1e293b',
+        fontWeight: 700,
+        color: '#2C2A27',
         margin: '0 0 4px 0',
         display: 'flex',
         alignItems: 'center',
@@ -77,7 +81,7 @@ function Sidebar({ onSelectPdf, currentPdf }) {
 
     const subheaderStyle = {
         fontSize: '12px',
-        color: '#64748b',
+        color: '#7A756B',
         marginBottom: '24px',
     }
 
@@ -90,20 +94,20 @@ function Sidebar({ onSelectPdf, currentPdf }) {
     }
 
     const docCardStyle = (doc, isActive) => ({
-        padding: '14px 16px',
+        padding: '16px',
         backgroundColor: isActive 
-            ? '#e8f0fe' 
-            : (hoveredDocId === doc.id ? '#f8fafc' : '#ffffff'),
-        borderRadius: '12px',
-        border: isActive ? '1px solid #aecbfa' : '1px solid #e2e8f0',
+            ? '#2C2A27' 
+            : (hoveredDocId === doc.id ? '#FAF6EE' : '#F2EAE0'),
+        borderRadius: '24px',
+        border: isActive ? '1.5px solid #FFD000' : '1px solid rgba(122, 117, 107, 0.2)',
         marginBottom: '12px',
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '6px',
         transform: hoveredDocId === doc.id ? 'translateY(-2px)' : 'none',
-        boxShadow: hoveredDocId === doc.id ? '0 4px 12px rgba(0, 0, 0, 0.05)' : 'none',
+        boxShadow: hoveredDocId === doc.id ? '0 4px 12px rgba(122, 117, 107, 0.05)' : 'none',
     })
 
     return (
@@ -119,18 +123,52 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                         onClick={() => setIsCollapsed(!isCollapsed)}
                         title={isCollapsed ? "Mở rộng" : "Thu gọn"}
                     >
-                        <Menu size={20} />
+                        <Menu size={20} strokeWidth={2.5} />
+                    </div>
+
+                    {/* Chat Mode Button */}
+                    <div 
+                        style={iconButtonStyle('chat', currentView === 'chat')}
+                        onMouseEnter={() => setHoveredIcon('chat')}
+                        onMouseLeave={() => setHoveredIcon(null)}
+                        onClick={() => onChangeView('chat')}
+                        title="Trò chuyện AI"
+                        className={currentView === 'chat' ? 'active-pulse' : ''}
+                    >
+                        <MessageSquare 
+                            size={20} 
+                            strokeWidth={1.5} 
+                            fill={currentView === 'chat' ? '#ffffff' : (hoveredIcon === 'chat' ? '#2C2A27' : 'transparent')} 
+                            style={{ color: currentView === 'chat' ? '#ffffff' : '#2C2A27' }} 
+                        />
+                    </div>
+
+                    {/* Viva Panel Button */}
+                    <div 
+                        style={iconButtonStyle('viva', currentView === 'viva')}
+                        onMouseEnter={() => setHoveredIcon('viva')}
+                        onMouseLeave={() => setHoveredIcon(null)}
+                        onClick={() => onChangeView('viva')}
+                        title="Hội đồng phản biện ảo"
+                        className={currentView === 'viva' ? 'active-pulse' : ''}
+                    >
+                        <GraduationCap 
+                            size={20} 
+                            strokeWidth={1.5} 
+                            fill={currentView === 'viva' ? '#ffffff' : (hoveredIcon === 'viva' ? '#2C2A27' : 'transparent')} 
+                            style={{ color: currentView === 'viva' ? '#ffffff' : '#2C2A27' }} 
+                        />
                     </div>
 
                     {/* New Conversation + Button */}
                     <div 
-                        style={iconButtonStyle('plus', true)}
+                        style={iconButtonStyle('plus', false)}
                         onMouseEnter={() => setHoveredIcon('plus')}
                         onMouseLeave={() => setHoveredIcon(null)}
                         onClick={handleNewChat}
                         title="Hội thoại mới"
                     >
-                        <Plus size={20} style={{ color: '#0061c1' }} />
+                        <Plus size={20} strokeWidth={3} style={{ color: '#2C2A27' }} />
                     </div>
                 </div>
 
@@ -142,7 +180,7 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                         onMouseLeave={() => setHoveredIcon(null)}
                         title="Trợ giúp"
                     >
-                        <HelpCircle size={20} />
+                        <HelpCircle size={20} strokeWidth={1.5} fill={hoveredIcon === 'help' ? '#2C2A27' : 'transparent'} />
                     </div>
                     <div 
                         style={iconButtonStyle('history')}
@@ -150,7 +188,7 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                         onMouseLeave={() => setHoveredIcon(null)}
                         title="Lịch sử hoạt động"
                     >
-                        <History size={20} />
+                        <History size={20} strokeWidth={2.5} />
                     </div>
                     <div 
                         style={iconButtonStyle('settings')}
@@ -158,7 +196,7 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                         onMouseLeave={() => setHoveredIcon(null)}
                         title="Cài đặt"
                     >
-                        <Settings size={20} />
+                        <Settings size={20} strokeWidth={1.5} fill={hoveredIcon === 'settings' ? '#2C2A27' : 'transparent'} />
                     </div>
                 </div>
             </div>
@@ -182,10 +220,15 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                                 onMouseLeave={() => setHoveredDocId(null)}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <FileText size={18} style={{ color: isActive ? '#1a73e8' : '#64748b', flexShrink: 0 }} />
+                                    <FileText 
+                                        size={18} 
+                                        strokeWidth={1.5} 
+                                        fill={isActive ? '#ffffff' : (hoveredDocId === doc.id ? '#2C2A27' : 'transparent')} 
+                                        style={{ color: isActive ? '#ffffff' : '#2C2A27', flexShrink: 0 }} 
+                                    />
                                     <span style={{ 
-                                        fontWeight: isActive ? 600 : 500, 
-                                        color: isActive ? '#1967d2' : '#334155',
+                                        fontWeight: isActive ? 700 : 500, 
+                                        color: isActive ? '#ffffff' : '#2C2A27',
                                         fontSize: '14px',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
@@ -198,7 +241,7 @@ function Sidebar({ onSelectPdf, currentPdf }) {
                                     display: 'flex', 
                                     justifyContent: 'space-between', 
                                     fontSize: '11px', 
-                                    color: isActive ? '#70a5f9' : '#94a3b8',
+                                    color: isActive ? '#FAF6EE' : '#7A756B',
                                     paddingLeft: '28px'
                                 }}>
                                     <span>{doc.size}</span>

@@ -1,1 +1,131 @@
-ÿþ
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+/* Global resets & customizations */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+    background-color: #FAF6EE;
+    color: #2C2A27;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Custom scrollbars for clean UI */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(122, 117, 107, 0.2);
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(122, 117, 107, 0.4);
+}
+
+/* Nothing OS inspired dot-matrix grid background for App */
+.nothing-grid-bg {
+    background-image: radial-gradient(rgba(122, 117, 107, 0.12) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+/* Smooth Neumorphic / Glassmorphic Shadow & Border styles */
+.nothing-card {
+    background-color: #F2EAE0;
+    border-radius: 32px;
+    border: 1px solid rgba(122, 117, 107, 0.2);
+    box-shadow: 0 4px 30px rgba(122, 117, 107, 0.02), 0 10px 50px rgba(122, 117, 107, 0.05);
+}
+
+.nothing-subcard {
+    background-color: #FAF6EE;
+    border-radius: 24px;
+    border: 1px solid rgba(122, 117, 107, 0.2);
+}
+
+.nothing-pill {
+    border-radius: 9999px;
+}
+
+/* Micro-animations */
+@keyframes pulse-ring {
+    0% { transform: scale(0.95); opacity: 0.5; }
+    50% { transform: scale(1.05); opacity: 0.8; }
+    100% { transform: scale(0.95); opacity: 0.5; }
+}
+.active-pulse {
+    position: relative;
+}
+.active-pulse::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border: 2px solid #FFD000;
+    border-radius: 50%;
+    animation: pulse-ring 2s infinite ease-in-out;
+}
+
+/* Pulsing yellow dot for active examiner / nothing os signature */
+@keyframes nothing-red-pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+}
+.nothing-red-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #FFD000;
+    display: inline-block;
+    animation: nothing-red-pulse 1.5s infinite ease-in-out;
+}
+
+/* Nothing UI Modal Styles and Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Glassmorphism & backdrop blur helper mappings in case Tailwind configuration is not built */
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.bg-black\/20 { background-color: rgba(0, 0, 0, 0.2) !important; }
+.backdrop-blur-md { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.z-50 { z-index: 50; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.rounded-\[32px\] { border-radius: 32px; }
+.rounded-\[24px\] { border-radius: 24px; }
+.shadow-\[0_20px_50px_rgba\(0\,0\,0\,0\.1\)\] { box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+.border-black\/5 { border: 1px solid rgba(0, 0, 0, 0.05); }
+.w-8 { width: 32px; }
+.h-8 { height: 32px; }
+
