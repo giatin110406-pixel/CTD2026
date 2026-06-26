@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Sparkles, Mic, HelpCircle, RefreshCw, Award, CheckCircle, AlertTriangle, Play, X, User } from 'lucide-react'
+import { Send, Sparkles, Mic, HelpCircle, RefreshCw, Award, CheckCircle, AlertTriangle, Play, X, User, Shield, GraduationCap, FileText, Download, Lightbulb } from 'lucide-react'
 
-const API_BASE_URL = 'http://127.0.0.1:8001';
+
+
+const API_BASE_URL = 'http://127.0.0.1:8002';
 
 const examiners = [
     { 
@@ -201,7 +203,7 @@ function VivaPanel({ currentPdf }) {
                     { 
                         sender: 'bot', 
                         examiner_id: 'host', 
-                        text: `🎉 Buổi phản biện đã kết thúc! Hội đồng đã hoàn thành việc chấm điểm và đánh giá đề tài của bạn. Điểm số đề xuất: ${data.scorecard.score}/10.\n\nNhấp vào nút "Xem bảng điểm kết quả" bên dưới để xem phân tích chi tiết.` 
+                        text: `Buổi phản biện đã kết thúc! Hội đồng đã hoàn thành việc chấm điểm và đánh giá đề tài của bạn. Điểm số đề xuất: ${data.scorecard.score}/10.\n\nNhấp vào nút "Xem bảng điểm kết quả" bên dưới để xem phân tích chi tiết.` 
                     }
                 ]);
             } else {
@@ -270,7 +272,7 @@ function VivaPanel({ currentPdf }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: 'none', backgroundColor: '#ffffff' }}>
                 <div>
                     <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#111111', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.5px' }}>
-                        🛡️ Hội đồng phản biện ảo <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#000000', color: '#ffffff', padding: '2px 8px', borderRadius: '9999px', letterSpacing: '0.5px' }}>AI VIVA PANEL</span>
+                        <Shield size={20} style={{ color: '#111111' }} /> Hội đồng phản biện ảo <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#000000', color: '#ffffff', padding: '2px 8px', borderRadius: '9999px', letterSpacing: '0.5px' }}>AI VIVA PANEL</span>
                     </h2>
                     <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
                         Đang bảo vệ: <strong style={{ color: '#111111' }}>{getPdfTitle()}</strong>
@@ -291,8 +293,8 @@ function VivaPanel({ currentPdf }) {
             {!isSessionStarted ? (
                 // MÀN HÌNH WELCOME
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', overflowY: 'auto' }}>
-                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#000000', display: 'flex', alignItems: 'center', justifyStyle: 'center', color: '#ffffff', fontSize: '40px', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
-                        🎓
+                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#000000', display: 'flex', alignItems: 'center', color: '#ffffff', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
+                        <GraduationCap size={40} style={{ color: '#ffffff' }} />
                     </div>
                     <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#111111', marginBottom: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.5px' }}>
                         Bảo vệ thử luận văn của bạn trước Hội đồng AI
@@ -356,7 +358,7 @@ function VivaPanel({ currentPdf }) {
                         
                         {uploadedFile ? (
                             <>
-                                <div style={{ fontSize: '32px' }}>📄</div>
+                                <FileText size={32} style={{ color: '#2C2A27' }} />
                                 <div style={{ textAlign: 'center', width: '100%' }}>
                                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#2C2A27', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px', margin: '0 auto' }}>
                                         {uploadedFile.name}
@@ -397,7 +399,7 @@ function VivaPanel({ currentPdf }) {
                             </>
                         ) : (
                             <>
-                                <div style={{ fontSize: '28px', color: '#2C2A27' }}>📥</div>
+                                <Download size={28} style={{ color: '#2C2A27' }} />
                                 <div style={{ textAlign: 'center' }}>
                                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#2C2A27' }}>Import/Tải lên tệp luận văn PDF của bạn</span>
                                     <span style={{ fontSize: '11.5px', color: '#7A756B', display: 'block', marginTop: '2px', fontWeight: 500 }}>Kéo thả hoặc nhấp để chọn tệp (Tối đa 10MB)</span>
@@ -409,7 +411,7 @@ function VivaPanel({ currentPdf }) {
                     {/* Hiển thị tệp hiện hành nếu không upload */}
                     {!uploadedFile && (
                         <div style={{ width: '100%', maxWidth: '500px', padding: '14px 18px', backgroundColor: '#FAF6EE', border: '1px solid rgba(122, 117, 107, 0.2)', borderRadius: '24px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'left', marginBottom: '24px', boxSizing: 'border-box' }}>
-                            <span style={{ fontSize: '20px' }}>📄</span>
+                            <FileText size={20} style={{ color: '#2C2A27' }} />
                             <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#2C2A27', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPdfTitle()}</div>
                                 <div style={{ fontSize: '11px', color: '#7A756B', fontWeight: 500 }}>{currentPdf ? "Tệp PDF từ Sidebar đang được đính kèm" : "Mặc định: Sử dụng đề tài luận văn nghiên cứu chung"}</div>
@@ -525,7 +527,7 @@ function VivaPanel({ currentPdf }) {
                                 const isUser = msg.sender === 'user';
                                 const examiner = examiners.find(ex => ex.id === msg.examiner_id) || {
                                     name: 'Hội đồng',
-                                    avatar: '🎓',
+                                    avatar: 'cap',
                                     bgColor: '#F2EAE0'
                                 };
                                 return (
@@ -558,18 +560,39 @@ function VivaPanel({ currentPdf }) {
                                                 S
                                             </div>
                                         ) : (
-                                            <img 
-                                                src={examiner.avatar} 
-                                                alt={examiner.name}
-                                                style={{ 
+                                            examiner.avatar.startsWith('http') ? (
+                                                <img 
+                                                    src={examiner.avatar} 
+                                                    alt={examiner.name}
+                                                    style={{ 
+                                                        width: '36px', 
+                                                        height: '36px', 
+                                                        borderRadius: '50%', 
+                                                        objectFit: 'cover',
+                                                        flexShrink: 0,
+                                                        boxShadow: '0 2px 4px rgba(122,117,107,0.03)'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{ 
                                                     width: '36px', 
                                                     height: '36px', 
                                                     borderRadius: '50%', 
-                                                    objectFit: 'cover',
-                                                    flexShrink: 0,
-                                                    boxShadow: '0 2px 4px rgba(122,117,107,0.03)'
-                                                }}
-                                            />
+                                                    backgroundColor: '#2C2A27', 
+                                                    color: '#FFD000',
+                                                    border: '1px solid #FFD000',
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center', 
+                                                    flexShrink: 0
+                                                }}>
+                                                    {examiner.avatar === 'cap' ? (
+                                                        <GraduationCap size={20} style={{ color: '#FFD000' }} />
+                                                    ) : (
+                                                        <Shield size={20} style={{ color: '#FFD000' }} />
+                                                    )}
+                                                </div>
+                                            )
                                         )}
                                         
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -611,7 +634,7 @@ function VivaPanel({ currentPdf }) {
                                         fontSize: '16px',
                                         animation: 'spin 2s linear infinite'
                                     }}>
-                                        🎓
+                                        <GraduationCap size={20} style={{ color: '#FFD000' }} />
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontSize: '11px', fontWeight: 600, color: '#7A756B', marginBottom: '4px' }}>Hội đồng AI</span>
@@ -763,7 +786,7 @@ function VivaPanel({ currentPdf }) {
                                 {/* Strengths */}
                                 <div style={{ padding: '20px', backgroundColor: '#FAF6EE', border: '1.5px solid #FFD000', borderRadius: '24px' }}>
                                     <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 700, color: '#2C2A27', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        ✅ Điểm mạnh ghi nhận
+                                        <CheckCircle size={14} style={{ color: '#FFD000' }} /> Điểm mạnh ghi nhận
                                     </h4>
                                     <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#2C2A27', display: 'flex', flexDirection: 'column', gap: '6px', fontWeight: 500 }}>
                                         {scorecard.strengths?.map((str, i) => (
@@ -775,7 +798,7 @@ function VivaPanel({ currentPdf }) {
                                 {/* Weaknesses */}
                                 <div style={{ padding: '20px', backgroundColor: '#FAF6EE', border: '1.5px solid #7A756B', borderRadius: '24px' }}>
                                     <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 700, color: '#7A756B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        ⚠️ Điểm yếu & Lỗ hổng cần sửa
+                                        <AlertTriangle size={14} style={{ color: '#7A756B' }} /> Điểm yếu & Lỗ hổng cần sửa
                                     </h4>
                                     <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#7A756B', display: 'flex', flexDirection: 'column', gap: '6px', fontWeight: 500 }}>
                                         {scorecard.weaknesses?.map((weak, i) => (
@@ -787,8 +810,8 @@ function VivaPanel({ currentPdf }) {
 
                             {/* Ideal Answers Table */}
                             <div>
-                                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#2C2A27' }}>
-                                    💡 Gợi ý câu trả lời chuẩn học thuật từ chuyên gia
+                                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#2C2A27', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Lightbulb size={14} style={{ color: '#2C2A27' }} /> Gợi ý câu trả lời chuẩn học thuật từ chuyên gia
                                 </h4>
                                 <div style={{ border: '1px solid rgba(122, 117, 107, 0.2)', borderRadius: '24px', overflow: 'hidden' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>

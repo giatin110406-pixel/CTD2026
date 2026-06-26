@@ -24,7 +24,7 @@ function Sidebar({ onSelectPdf, currentPdf, currentView, onChangeView }) {
         border: '1px solid rgba(122, 117, 107, 0.2)',
         backgroundColor: '#F2EAE0',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        width: isCollapsed ? '76px' : '340px',
+        width: '76px',
         userSelect: 'none',
         boxShadow: '0 4px 30px rgba(122, 117, 107, 0.02), 0 10px 50px rgba(122, 117, 107, 0.05)',
         overflow: 'hidden',
@@ -199,58 +199,6 @@ function Sidebar({ onSelectPdf, currentPdf, currentView, onChangeView }) {
                         <Settings size={20} strokeWidth={1.5} fill={hoveredIcon === 'settings' ? '#2C2A27' : 'transparent'} />
                     </div>
                 </div>
-            </div>
-
-            {/* Right Column: Documents List */}
-            <div style={contentPanelStyle}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={headerStyle}>📚 Tài liệu RAG</h3>
-                </div>
-                <div style={subheaderStyle}>Chọn file PDF để đính kèm ngữ cảnh RAG</div>
-                
-                <ul style={docListStyle}>
-                    {documents.map((doc) => {
-                        const isActive = currentPdf === doc.url
-                        return (
-                            <li
-                                key={doc.id}
-                                onClick={() => onSelectPdf(doc.url)}
-                                style={docCardStyle(doc, isActive)}
-                                onMouseEnter={() => setHoveredDocId(doc.id)}
-                                onMouseLeave={() => setHoveredDocId(null)}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <FileText 
-                                        size={18} 
-                                        strokeWidth={1.5} 
-                                        fill={isActive ? '#ffffff' : (hoveredDocId === doc.id ? '#2C2A27' : 'transparent')} 
-                                        style={{ color: isActive ? '#ffffff' : '#2C2A27', flexShrink: 0 }} 
-                                    />
-                                    <span style={{ 
-                                        fontWeight: isActive ? 700 : 500, 
-                                        color: isActive ? '#ffffff' : '#2C2A27',
-                                        fontSize: '14px',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {doc.title}
-                                    </span>
-                                </div>
-                                <div style={{ 
-                                    display: 'flex', 
-                                    justifyContent: 'space-between', 
-                                    fontSize: '11px', 
-                                    color: isActive ? '#FAF6EE' : '#7A756B',
-                                    paddingLeft: '28px'
-                                }}>
-                                    <span>{doc.size}</span>
-                                    <span>{doc.pages} trang</span>
-                                </div>
-                            </li>
-                        )
-                    })}
-                </ul>
             </div>
         </div>
     )

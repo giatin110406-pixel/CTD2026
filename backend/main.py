@@ -149,7 +149,7 @@ async def chat_with_thesis(request: ChatRequest):
         sources = []
         for doc in docs:
             meta = doc.metadata
-            pdf_path = meta.get("pdf_path", "")
+            pdf_path = meta.get("source", meta.get("pdf_path", ""))
             pdf_name = os.path.basename(pdf_path) if pdf_path else ""
             source_info = {
                 "title": meta.get("title", "N/A"),

@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import VivaPanel from './components/VivaPanel'
-import { X } from 'lucide-react'
+import { X, FileText } from 'lucide-react'
+
 
 function App() {
   const [currentPdf, setCurrentPdf] = useState(null)
@@ -92,11 +93,14 @@ function App() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: '80%'
+                  maxWidth: '80%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
                 title={activePdfName}
               >
-                📄 {activePdfName}
+                <FileText size={16} style={{ color: '#2C2A27' }} /> {activePdfName}
               </span>
               
               {/* Special Circle Solid Close Button (Nothing UI style) */}
@@ -144,7 +148,7 @@ function App() {
               }}
             >
               <iframe
-                src={`http://127.0.0.1:8001/api/pdf/${activePdfName}`}
+                src={`http://127.0.0.1:8002/api/pdf/${activePdfName}`}
                 title="PDF Modal Viewer"
                 style={{
                   width: '100%',

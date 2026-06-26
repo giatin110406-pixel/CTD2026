@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles, Mic, Paperclip, FileText, BarChart2, BookOpen, FileUp, X } from 'lucide-react'
+import { Send, Sparkles, Mic, Paperclip, FileText, BarChart2, BookOpen, FileUp, X, MessageSquare, Search, ClipboardList, Rocket, Loader2, User, Calendar, Lightbulb } from 'lucide-react'
 
 
-const API_BASE_URL = 'http://127.0.0.1:8001';
+
+
+const API_BASE_URL = 'http://127.0.0.1:8002';
 
 
 function ChatWindow({ setActivePdfName }) {
@@ -140,27 +142,39 @@ function ChatWindow({ setActivePdfName }) {
 
                     // Nếu backend tìm thấy nguồn trích dẫn, nối thêm vào cuối bong bóng chat
                     if (data.sources && data.sources.length > 0) {
-                        finalText += '\n\n📚 **Nguồn trích dẫn tìm thấy:**';
+                        finalText += '\n\n**Nguồn trích dẫn tìm thấy:**';
                         data.sources.forEach((src, idx) => {
                             finalText += `\n[${idx + 1}] ${src.title} - ${src.authors} (${src.year})`;
                         });
                     }
 
 
-                    // Tự động gán file tài liệu tham khảo thực tế từ RAG hoặc mock
-                    let citationPdf = "thamkhao.pdf";
-                    if (data.sources && data.sources.length > 0 && data.sources[0].pdf_name) {
-                        citationPdf = data.sources[0].pdf_name;
-                    } else {
-                        if (userText.toLowerCase().includes("chương 1")) citationPdf = "chuong1.pdf";
-                        if (userText.toLowerCase().includes("chương 2")) citationPdf = "chuong2.pdf";
+                    // Tự động gán danh sách nguồn tài liệu tham khảo thực tế từ RAG hoặc mock
+                    let msgSources = data.sources || [];
+                    if (msgSources.length === 0) {
+                        let mockPdf = "thamkhao.pdf";
+                        let mockTitle = "Tài liệu tham khảo AI & RAG";
+                        if (userText.toLowerCase().includes("chương 1")) {
+                            mockPdf = "chuong1.pdf";
+                            mockTitle = "Luận văn Tốt nghiệp - Chương 1";
+                        } else if (userText.toLowerCase().includes("chương 2")) {
+                            mockPdf = "chuong2.pdf";
+                            mockTitle = "Luận văn Tốt nghiệp - Chương 2";
+                        }
+                        msgSources = [{
+                            title: mockTitle,
+                            authors: "N/A",
+                            year: "2026",
+                            journal: "N/A",
+                            pdf_name: mockPdf
+                        }];
                     }
 
 
                     return {
                         ...msg,
                         text: finalText,
-                        citation: citationPdf // Tên file PDF thực tế được xem trong Modal
+                        sources: msgSources
                     };
                 }
                 return msg;
@@ -171,8 +185,8 @@ function ChatWindow({ setActivePdfName }) {
             console.error("Lỗi kết nối RAG:", error);
             const isNetworkError = error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('Network request failed');
             const displayText = isNetworkError 
-                ? '❌ Không thể kết nối tới server Backend RAG. Bạn đã chạy lệnh uvicorn cổng 8001 chưa?'
-                : `❌ ${error.message}`;
+                ? '[Lỗi] Không thể kết nối tới server Backend RAG. Bạn đã chạy lệnh uvicorn cổng 8001 chưa?'
+                : `[Lỗi] ${error.message}`;
             setMessages(prev => prev.map(msg =>
                 msg.id === botLoadingId
                     ? { ...msg, text: displayText }
@@ -700,7 +714,10 @@ function ChatWindow({ setActivePdfName }) {
                         boxShadow: !isCompareMode ? '0 2px 8px rgba(122, 117, 107, 0.1)' : 'none'
                     }}
                 >
-                    💬 Chat thường
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <MessageSquare size={14} style={{ color: !isCompareMode ? '#ffffff' : '#7A756B' }} />
+                        Chat thường
+                    </span>
                 </button>
                 <button
                     onClick={() => handleModeSwitch(true)}
@@ -717,7 +734,10 @@ function ChatWindow({ setActivePdfName }) {
                         boxShadow: isCompareMode ? '0 2px 8px rgba(122, 117, 107, 0.1)' : 'none'
                     }}
                 >
-                    🔍 So sánh đề tài
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Search size={14} style={{ color: isCompareMode ? '#ffffff' : '#7A756B' }} />
+                        So sánh đề tài
+                    </span>
                 </button>
             </div>
 
@@ -735,7 +755,10 @@ function ChatWindow({ setActivePdfName }) {
                     margin: '0 auto',
                     width: '100%'
                 }}>
-                    <h3 style={{ margin: 0, color: '#2C2A27', fontSize: '20px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>📋 So sánh đề tài nghiên cứu</h3>
+                    <h3 style={{ margin: 0, color: '#2C2A27', fontSize: '20px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ClipboardList size={20} style={{ color: '#2C2A27' }} />
+                        So sánh đề tài nghiên cứu
+                    </h3>
 
                     {/* Input Tiêu đề */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -807,7 +830,17 @@ function ChatWindow({ setActivePdfName }) {
                             fontSize: '15px'
                         }}
                     >
-                        {isComparing ? '⏳ Đang phân tích...' : '🚀 Bắt đầu so sánh đề tài'}
+                        {isComparing ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                <Loader2 size={15} style={{ color: '#ffffff' }} className="animate-spin" />
+                                Đang phân tích...
+                            </span>
+                        ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                <Rocket size={15} style={{ color: '#ffffff' }} />
+                                Bắt đầu so sánh đề tài
+                            </span>
+                        )}
                     </button>
 
 
@@ -822,7 +855,10 @@ function ChatWindow({ setActivePdfName }) {
                                 borderLeft: '4px solid #FFD000',
                                 borderRadius: '24px'
                             }}>
-                                <h4 style={{ margin: '0 0 8px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700 }}>📊 Đánh giá trùng lặp</h4>
+                                <h4 style={{ margin: '0 0 8px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <BarChart2 size={16} style={{ color: '#2C2A27' }} />
+                                    Đánh giá trùng lặp
+                                </h4>
                                 <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#FFD000' }}>
                                     {compareResult.overlap_level}
                                 </p>
@@ -834,7 +870,10 @@ function ChatWindow({ setActivePdfName }) {
 
                             {/* Danh sách đề tài liên quan */}
                             <div>
-                                <h4 style={{ margin: '0 0 12px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700 }}>📚 Top 5 luận văn liên quan trong hệ thống</h4>
+                                <h4 style={{ margin: '0 0 12px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <BookOpen size={16} style={{ color: '#2C2A27' }} />
+                                    Top 5 luận văn liên quan trong hệ thống
+                                </h4>
                                 {compareResult.similar_theses.length === 0 ? (
                                     <div style={{ padding: '24px', backgroundColor: '#FAF6EE', borderRadius: '24px', border: '1px solid rgba(122, 117, 107, 0.2)', textAlign: 'center', color: '#7A756B', fontSize: '14px' }}>
                                         Không tìm thấy đề tài liên quan tương tự nào.
@@ -852,8 +891,18 @@ function ChatWindow({ setActivePdfName }) {
                                                 <h5 style={{ margin: '0 0 6px 0', color: '#2C2A27', fontSize: '15px', fontWeight: 700 }}>
                                                     {idx + 1}. {thesis.title}
                                                 </h5>
-                                                <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#7A756B', fontWeight: 500 }}>
-                                                    👤 Tác giả: {thesis.authors} | 📅 Năm: {thesis.year} | 📖 {thesis.journal}
+                                                <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#7A756B', fontWeight: 500, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                        <User size={12} style={{ color: '#7A756B' }} /> Tác giả: {thesis.authors}
+                                                    </span>
+                                                    <span>|</span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Calendar size={12} style={{ color: '#7A756B' }} /> Năm: {thesis.year}
+                                                    </span>
+                                                    <span>|</span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                        <BookOpen size={12} style={{ color: '#7A756B' }} /> {thesis.journal}
+                                                    </span>
                                                 </p>
                                                 <p style={{
                                                     margin: '0 0 12px 0',
@@ -887,7 +936,10 @@ function ChatWindow({ setActivePdfName }) {
 
                             {/* Phân tích khoảng trống của Gemini */}
                             <div>
-                                <h4 style={{ margin: '0 0 12px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700 }}>💡 Đánh giá khoảng trống nghiên cứu (Gemini AI gợi ý)</h4>
+                                <h4 style={{ margin: '0 0 12px 0', color: '#2C2A27', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Lightbulb size={16} style={{ color: '#2C2A27' }} />
+                                    Đánh giá khoảng trống nghiên cứu (Gemini AI gợi ý)
+                                </h4>
                                 <div style={{
                                     padding: '20px',
                                     backgroundColor: '#FAF6EE',
@@ -977,16 +1029,31 @@ function ChatWindow({ setActivePdfName }) {
                                             </div>
 
 
-                                            {/* Nút xem tài liệu nếu có trích dẫn từ nguồn RAG */}
-                                            {msg.sender === 'bot' && msg.citation && (
-                                                <div>
-                                                    <div
-                                                        style={citationBadgeStyle}
-                                                        onClick={() => setActivePdfName(msg.citation)}
-                                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2C2A27'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#FFD000'; }}
-                                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FAF6EE'; e.currentTarget.style.color = '#2C2A27'; e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.2)'; }}
-                                                    >
-                                                        <span>📎 Xem tài liệu nguồn: {msg.citation}</span>
+                                            {/* Danh sách các tài liệu trích dẫn nguồn RAG (người dùng click để xem trực tiếp) */}
+                                            {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#7A756B', marginLeft: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Paperclip size={13} style={{ color: '#7A756B' }} /> Tài liệu nguồn trích dẫn (click để xem PDF):
+                                                    </span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                        {msg.sources.map((src, idx) => {
+                                                            if (!src.pdf_name) return null;
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    style={citationBadgeStyle}
+                                                                    onClick={() => setActivePdfName(src.pdf_name)}
+                                                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2C2A27'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#FFD000'; }}
+                                                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FAF6EE'; e.currentTarget.style.color = '#2C2A27'; e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.2)'; }}
+                                                                    title={`Xem tệp ${src.pdf_name}`}
+                                                                >
+                                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                        <Paperclip size={13} />
+                                                                        [{idx + 1}] {src.pdf_name}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             )}
