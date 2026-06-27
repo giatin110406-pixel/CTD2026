@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import VivaPanel from './components/VivaPanel'
+import FormatChecker from './components/FormatChecker'
 import { X, FileText } from 'lucide-react'
 
 
@@ -34,8 +35,10 @@ function App() {
       
       {currentView === 'chat' ? (
         <ChatWindow setActivePdfName={setActivePdfName} />
-      ) : (
+      ) : currentView === 'viva' ? (
         <VivaPanel currentPdf={currentPdf} />
+      ) : (
+        <FormatChecker />
       )}
 
       {/* Nothing UI Centered PDF Modal Pop-up */}

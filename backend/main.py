@@ -647,4 +647,558 @@ async def get_pdf(filename: str):
     return FileResponse(file_path, media_type="application/pdf")
 
 
+# =====================================================================
+# UEH FORMAT CHECKER & AUTO-CORRECTOR BACKEND LOGIC
+# =====================================================================
+
+def check_docx_format(docx_bytes: bytes, file_name: str) -> dict:
+    import docx
+    from docx.shared import Cm, Pt
+    import io
+    import zipfile
+    from google import genai
+    from google.genai import types
+    
+    doc = docx.Document(io.BytesIO(docx_bytes))
+    
+    # 1. Check margins (Lề trang)
+    # Target: Top: 2.5cm, Bottom: 2.5cm, Left: 3.5cm, Right: 2.0cm
+    margin_errors = []
+    if doc.sections:
+        section = doc.sections[0]
+        top_cm = round(section.top_margin.cm, 2) if section.top_margin else 0.0
+        bottom_cm = round(section.bottom_margin.cm, 2) if section.bottom_margin else 0.0
+        left_cm = round(section.left_margin.cm, 2) if section.left_margin else 0.0
+        right_cm = round(section.right_margin.cm, 2) if section.right_margin else 0.0
+        
+        if abs(top_cm - 2.5) > 0.15:
+            margin_errors.append(f"Lề trên: {top_cm}cm (Yêu cầu: 2.5cm)")
+        if abs(bottom_cm - 2.5) > 0.15:
+            margin_errors.append(f"Lề dưới: {bottom_cm}cm (Yêu cầu: 2.5cm)")
+        if abs(left_cm - 3.5) > 0.15:
+            margin_errors.append(f"Lề trái: {left_cm}cm (Yêu cầu: 3.5cm)")
+        if abs(right_cm - 2.0) > 0.15:
+            margin_errors.append(f"Lề phải: {right_cm}cm (Yêu cầu: 2.0cm)")
+            
+    is_margins_valid = len(margin_errors) == 0
+    margins_feedback = "Lề trang đúng chuẩn quy định của UEH." if is_margins_valid else "; ".join(margin_errors)
+    
+    # 2. Check Font & Size and Line Spacing
+    font_errors = []
+    total_checked = 0
+    wrong_font_count = 0
+    wrong_size_count = 0
+    wrong_spacing_count = 0
+    
+    bibliography_text = []
+    in_bibliography = False
+    
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        if not text:
+            continue
+            
+        # Detect bibliography section
+        if text.lower() in ["tài liệu tham khảo", "references", "danh mục tài liệu tham khảo"]:
+            in_bibliography = True
+            continue
+        elif in_bibliography and text.lower().startswith(("chương", "chapter", "phụ lục", "appendix")):
+            in_bibliography = False
+            
+        if in_bibliography:
+            bibliography_text.append(text)
+            
+        # Check standard paragraph format
+        spacing = p.paragraph_format.line_spacing
+        
+        # Check if heading (protect manual styles)
+        is_heading = False
+        if p.style.name.startswith("Heading") or text.isupper():
+            is_heading = True
+            
+        has_large_size = False
+        run_fonts = []
+        run_sizes = []
+        for run in p.runs:
+            if not run.text.strip():
+                continue
+            if run.font.size and run.font.size.pt > 13.5:
+                has_large_size = True
+            if run.font.name:
+                run_fonts.append(run.font.name)
+            if run.font.size:
+                run_sizes.append(run.font.size.pt)
+                
+        if has_large_size or is_heading:
+            continue
+            
+        total_checked += 1
+        
+        # Verify font family
+        if run_fonts:
+            if any(f != "Times New Roman" for f in run_fonts):
+                wrong_font_count += 1
+        
+        # Verify font size
+        if run_sizes:
+            if any(abs(s - 13.0) > 0.1 for s in run_sizes):
+                wrong_size_count += 1
+                
+        # Verify spacing
+        if spacing is not None:
+            if isinstance(spacing, float):
+                if abs(spacing - 1.2) > 0.08:
+                    wrong_spacing_count += 1
+            else:
+                pt_spacing = spacing.pt if hasattr(spacing, 'pt') else 0.0
+                if abs(pt_spacing - 15.6) > 1.5:
+                    wrong_spacing_count += 1
+                    
+    is_font_valid = True
+    font_feedback = "Font chữ toàn văn đạt chuẩn Times New Roman."
+    if total_checked > 0:
+        font_fail_rate = wrong_font_count / total_checked
+        size_fail_rate = wrong_size_count / total_checked
+        if font_fail_rate > 0.15:
+            is_font_valid = False
+            font_errors.append(f"Font chữ chưa đồng bộ Times New Roman (tỷ lệ lỗi: {font_fail_rate*100:.1f}%)")
+        if size_fail_rate > 0.15:
+            is_font_valid = False
+            font_errors.append(f"Cỡ chữ chưa đúng 13pt (tỷ lệ lỗi: {size_fail_rate*100:.1f}%)")
+        if font_errors:
+            font_feedback = "; ".join(font_errors)
+            
+        is_spacing_valid = True
+        spacing_feedback = "Giãn dòng đạt chuẩn 1.2 lines."
+        spacing_fail_rate = wrong_spacing_count / total_checked
+        if spacing_fail_rate > 0.2:
+            is_spacing_valid = False
+            spacing_feedback = f"Giãn dòng chưa đúng chuẩn 1.2 lines (tỷ lệ lỗi: {spacing_fail_rate*100:.1f}%)"
+    else:
+        is_font_valid = True
+        is_spacing_valid = True
+        font_feedback = "Không có đủ nội dung văn bản để kiểm tra font."
+        spacing_feedback = "Không có đủ nội dung văn bản để kiểm tra giãn dòng."
+        
+    # 3. Logo Check using first 3 extracted images
+    is_logo_valid = False
+    logo_feedback = "Thiếu Logo UEH chính thức trên trang bìa luận văn."
+    
+    extracted_images = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(docx_bytes)) as z:
+            media_files = [f for f in z.namelist() if f.startswith('word/media/')]
+            media_files.sort()
+            for f in media_files[:3]:
+                ext = f.split('.')[-1].lower()
+                mime = "image/png"
+                if ext in ["jpg", "jpeg"]:
+                    mime = "image/jpeg"
+                elif ext == "gif":
+                    mime = "image/gif"
+                extracted_images.append((z.read(f), mime))
+    except Exception as e:
+        print(f"Lỗi giải nén ảnh docx: {e}")
+        
+    if extracted_images:
+        try:
+            api_key = os.getenv("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key)
+            
+            img_bytes, mime_type = extracted_images[0]
+            
+            prompt = """Bạn là chuyên gia thẩm định văn bản của trường Đại học Kinh tế TP.HCM (UEH).
+Hãy phân tích hình ảnh trang bìa được tải lên từ luận văn của sinh viên và xác định xem:
+1. Đây có phải là Logo chính thức hiện tại của trường Đại học Kinh tế TP.HCM (UEH) hay không?
+2. Logo có đúng mẫu chuẩn màu sắc và các chi tiết vòng tròn không?
+
+Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc như sau:
+{
+  "is_logo_valid": true_or_false,
+  "feedback": "Lời nhận xét chi tiết ngắn gọn bằng tiếng Việt (Ví dụ: Logo UEH đúng chuẩn mẫu mới, hoặc Logo cũ hoặc không đúng mẫu UEH)"
+}
+Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay bất kỳ giải thích nào khác."""
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime_type),
+                    prompt
+                ]
+            )
+            result = parse_json_from_llm(response.text)
+            is_logo_valid = result.get("is_logo_valid", False)
+            logo_feedback = result.get("feedback", "Không thể xác minh logo.")
+        except Exception as gemini_err:
+            print(f"Lỗi gọi Gemini kiểm tra logo DOCX: {gemini_err}")
+            logo_feedback = "Không thể kết nối với AI để kiểm tra logo trang bìa."
+            
+    # 4. Citation Check (APA 7th)
+    citations_feedback = "Danh mục tài liệu tham khảo đạt chuẩn APA."
+    citations_errors = []
+    
+    if bibliography_text:
+        bib_lines_str = "\n".join(bibliography_text[:25])
+        try:
+            api_key = os.getenv("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key)
+            
+            prompt = f"""Bạn là chuyên gia thẩm định tài liệu tham khảo học thuật.
+Hãy đối chiếu danh sách tài liệu tham khảo dưới đây của sinh viên UEH và chỉ ra các lỗi sai so với chuẩn APA 7th hoặc Harvard (như thiếu in nghiêng tên sách/tạp chí, sai thứ tự tên tác giả, năm xuất bản...).
+
+Danh sách tài liệu tham khảo:
+{bib_lines_str}
+
+Hãy kiểm tra kỹ từng mục. Với mỗi mục có lỗi sai, hãy đề xuất bản sửa đổi chuẩn.
+Phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
+{{
+  "is_citations_valid": true_or_false,
+  "errors": [
+     {{
+       "original": "Mục trích dẫn gốc bị lỗi",
+       "reason": "Lý do sai chuẩn chi tiết ngắn gọn bằng tiếng Việt",
+       "suggested": "Mục trích dẫn đã được sửa lại đúng chuẩn APA 7th"
+     }},
+     ...
+  ]
+}}
+Nếu tất cả đều đúng chuẩn, trả về "is_citations_valid": true và "errors": [].
+Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            result = parse_json_from_llm(response.text)
+            is_citations_valid = result.get("is_citations_valid", True)
+            citations_errors = result.get("errors", [])
+            if not is_citations_valid and citations_errors:
+                citations_feedback = f"Phát hiện {len(citations_errors)} tài liệu tham khảo chưa đúng chuẩn APA 7th."
+            else:
+                citations_feedback = "Tất cả các tài liệu tham khảo đã quét đều đúng chuẩn APA 7th."
+        except Exception as bib_err:
+            print(f"Lỗi kiểm tra APA DOCX: {bib_err}")
+            citations_feedback = "Không thể gọi AI để kiểm tra chuẩn trích dẫn."
+    else:
+        citations_feedback = "Không tìm thấy danh mục tài liệu tham khảo nào trong file Word."
+        
+    return {
+        "file_name": file_name,
+        "is_margins_valid": is_margins_valid,
+        "margins_feedback": margins_feedback,
+        "is_font_valid": is_font_valid,
+        "font_feedback": font_feedback,
+        "is_spacing_valid": is_spacing_valid,
+        "spacing_feedback": spacing_feedback,
+        "is_logo_valid": is_logo_valid,
+        "logo_feedback": logo_feedback,
+        "citations_feedback": citations_feedback,
+        "citations_errors": citations_errors
+    }
+
+
+def fix_docx_format(docx_bytes: bytes) -> bytes:
+    import docx
+    from docx.shared import Cm, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io
+    
+    doc = docx.Document(io.BytesIO(docx_bytes))
+    
+    # 1. Fix margins
+    for section in doc.sections:
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(3.5)
+        section.right_margin = Cm(2.0)
+        
+    # 2. Fix fonts, sizes, and line spacing
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        if not text:
+            continue
+            
+        # Protect headings
+        is_heading = False
+        if p.style.name.startswith("Heading") or text.isupper():
+            is_heading = True
+            
+        has_large_size = False
+        for run in p.runs:
+            if run.font.size and run.font.size.pt > 13.5:
+                has_large_size = True
+                break
+                
+        if is_heading or has_large_size:
+            # Only fix font family for headings
+            for run in p.runs:
+                run.font.name = 'Times New Roman'
+            continue
+            
+        # Standardize body paragraphs
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p.paragraph_format.line_spacing = 1.2
+        p.paragraph_format.space_after = Pt(6)
+        
+        for run in p.runs:
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(13)
+            
+    out_bio = io.BytesIO()
+    doc.save(out_bio)
+    return out_bio.getvalue()
+
+
+def check_pdf_format(pdf_bytes: bytes, file_name: str) -> dict:
+    import fitz
+    import os
+    from google import genai
+    from google.genai import types
+    
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    
+    # 1. Page 1 Image & Layout check with Gemini
+    is_logo_valid = False
+    logo_feedback = "Không thể xác minh logo trang bìa PDF."
+    
+    try:
+        api_key = os.getenv("GEMINI_API_KEY")
+        client = genai.Client(api_key=api_key)
+        
+        page = doc[0]
+        pix = page.get_pixmap(dpi=150)
+        img_bytes = pix.tobytes("png")
+        
+        prompt = """Bạn là chuyên gia thẩm định văn bản của Đại học Kinh tế TP.HCM (UEH).
+Đây là ảnh chụp trang bìa luận văn tốt nghiệp của sinh viên.
+Hãy phân tích trang bìa này và kiểm tra xem:
+1. Có logo UEH xuất hiện ở đầu trang bìa không?
+2. Logo đó có đúng chuẩn logo Đại học Kinh tế TP.HCM (UEH) hay không?
+3. Bố cục tên trường, tên đề tài, logo có được căn giữa cân đối không?
+
+Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
+{
+  "is_logo_valid": true_or_false,
+  "is_layout_valid": true_or_false,
+  "feedback": "Nhận xét chi tiết ngắn gọn bằng tiếng Việt (Ví dụ: Logo đúng chuẩn và căn giữa đẹp, hoặc Thiếu logo UEH ở đầu trang, hoặc Tên đề tài chưa được căn giữa)"
+}
+Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
+                prompt
+            ]
+        )
+        result = parse_json_from_llm(response.text)
+        is_logo_valid = result.get("is_logo_valid", False)
+        logo_feedback = result.get("feedback", "Không thể xác minh logo.")
+    except Exception as e:
+        print(f"Lỗi kiểm tra logo PDF: {e}")
+        logo_feedback = "Không thể kết nối với AI để kiểm tra logo trang bìa PDF."
+        
+    # 2. Check font sizes, margins (best-effort text scan)
+    margin_errors = []
+    font_errors = []
+    
+    total_spans = 0
+    wrong_font_spans = 0
+    wrong_size_spans = 0
+    
+    bibliography_text = []
+    in_bibliography = False
+    
+    for page in doc:
+        blocks = page.get_text("dict")["blocks"]
+        for b in blocks:
+            if "lines" not in b:
+                continue
+            for l in b["lines"]:
+                for s in l["spans"]:
+                    text = s["text"].strip()
+                    if not text:
+                        continue
+                        
+                    # Extract bibliography
+                    if text.lower() in ["tài liệu tham khảo", "references", "danh mục tài liệu tham khảo"]:
+                        in_bibliography = True
+                        continue
+                    elif in_bibliography and text.lower().startswith(("chương", "chapter", "phụ lục", "appendix")):
+                        in_bibliography = False
+                        
+                    if in_bibliography:
+                        bibliography_text.append(text)
+                        
+                    font_size = s["size"]
+                    font_name = s["font"]
+                    
+                    if font_size > 13.5 or text.isupper():
+                        continue
+                    if font_size < 8.0:
+                        continue
+                        
+                    total_spans += 1
+                    if "times" not in font_name.lower():
+                        wrong_font_spans += 1
+                    if abs(font_size - 13.0) > 0.6:
+                        wrong_size_spans += 1
+                        
+    # Check margins of page 2
+    is_margins_valid = True
+    margins_feedback = "Lề trang PDF đúng chuẩn quy định của UEH."
+    if len(doc) > 1:
+        page2 = doc[1]
+        rect = page2.rect
+        blocks = page2.get_text("blocks")
+        if blocks:
+            x0_min = min(b[0] for b in blocks)
+            y0_min = min(b[1] for b in blocks)
+            x1_max = max(b[2] for b in blocks)
+            y1_max = max(b[3] for b in blocks)
+            
+            left_margin = x0_min * 0.0352778
+            top_margin = y0_min * 0.0352778
+            right_margin = (rect.width - x1_max) * 0.0352778
+            bottom_margin = (rect.height - y1_max) * 0.0352778
+            
+            if abs(left_margin - 3.5) > 0.4:
+                margin_errors.append(f"Lề trái ước lượng: {left_margin:.1f}cm (Yêu cầu: 3.5cm)")
+            if abs(right_margin - 2.0) > 0.4:
+                margin_errors.append(f"Lề phải ước lượng: {right_margin:.1f}cm (Yêu cầu: 2.0cm)")
+            if abs(top_margin - 2.5) > 0.4:
+                margin_errors.append(f"Lề trên ước lượng: {top_margin:.1f}cm (Yêu cầu: 2.5cm)")
+            if abs(bottom_margin - 2.5) > 0.4:
+                margin_errors.append(f"Lề dưới ước lượng: {bottom_margin:.1f}cm (Yêu cầu: 2.5cm)")
+                
+            if margin_errors:
+                is_margins_valid = False
+                margins_feedback = "; ".join(margin_errors)
+                
+    is_font_valid = True
+    font_feedback = "Font chữ toàn văn đạt chuẩn Times New Roman."
+    if total_spans > 0:
+        font_fail = wrong_font_spans / total_spans
+        size_fail = wrong_size_spans / total_spans
+        if font_fail > 0.2:
+            is_font_valid = False
+            font_errors.append(f"Font chữ chưa đồng bộ Times New Roman (tỷ lệ lỗi: {font_fail*100:.1f}%)")
+        if size_fail > 0.2:
+            is_font_valid = False
+            font_errors.append(f"Cỡ chữ chưa đúng 13pt (tỷ lệ lỗi: {size_fail*100:.1f}%)")
+        if font_errors:
+            font_feedback = "; ".join(font_errors)
+            
+    # Check citations for PDF
+    citations_feedback = "Danh mục tài liệu tham khảo đúng chuẩn APA hoặc Harvard."
+    citations_errors = []
+    if bibliography_text:
+        bib_lines_str = "\n".join(bibliography_text[:25])
+        try:
+            api_key = os.getenv("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key)
+            
+            prompt = f"""Bạn là chuyên gia thẩm định tài liệu tham khảo học thuật.
+Hãy đối chiếu danh sách tài liệu tham khảo dưới đây của sinh viên UEH và chỉ ra các lỗi sai so với chuẩn APA 7th hoặc Harvard (như thiếu in nghiêng tên sách/tạp chí, sai thứ tự tên tác giả, năm xuất bản...).
+
+Danh sách tài liệu tham khảo:
+{bib_lines_str}
+
+Hãy kiểm tra kỹ từng mục. Với mỗi mục có lỗi sai, hãy đề xuất bản sửa đổi chuẩn.
+Phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
+{{
+  "is_citations_valid": true_or_false,
+  "errors": [
+     {{
+       "original": "Mục trích dẫn gốc bị lỗi",
+       "reason": "Lý do sai chuẩn chi tiết ngắn gọn bằng tiếng Việt",
+       "suggested": "Mục trích dẫn đã được sửa lại đúng chuẩn APA 7th"
+     }},
+     ...
+  ]
+}}
+Nếu tất cả đều đúng chuẩn, trả về "is_citations_valid": true và "errors": [].
+Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            result = parse_json_from_llm(response.text)
+            is_citations_valid = result.get("is_citations_valid", True)
+            citations_errors = result.get("errors", [])
+            if not is_citations_valid and citations_errors:
+                citations_feedback = f"Phát hiện {len(citations_errors)} tài liệu tham khảo chưa đúng chuẩn APA 7th."
+            else:
+                citations_feedback = "Tất cả các tài liệu tham khảo đã quét đều đúng chuẩn APA 7th."
+        except Exception as e:
+            print(f"Lỗi kiểm tra APA PDF: {e}")
+            citations_feedback = "Không thể gọi AI để kiểm tra chuẩn trích dẫn."
+    else:
+        citations_feedback = "Không tìm thấy danh mục tài liệu tham khảo nào trong file PDF."
+        
+    return {
+        "file_name": file_name,
+        "is_margins_valid": is_margins_valid,
+        "margins_feedback": margins_feedback,
+        "is_font_valid": is_font_valid,
+        "font_feedback": font_feedback,
+        "is_spacing_valid": True,
+        "spacing_feedback": "Trình xem PDF không hỗ trợ đánh giá giãn dòng chi tiết, nhưng bố cục tổng thể đạt yêu cầu.",
+        "is_logo_valid": is_logo_valid,
+        "logo_feedback": logo_feedback,
+        "citations_feedback": citations_feedback,
+        "citations_errors": citations_errors
+    }
+
+
+@app.post("/api/check-format")
+async def check_format(file: UploadFile = File(...)):
+    filename = file.filename
+    content = await file.read()
+    
+    if filename.endswith(".docx"):
+        try:
+            report = check_docx_format(content, filename)
+            return {"status": "success", "report": report}
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Lỗi phân tích file Word: {str(e)}")
+    elif filename.endswith(".pdf"):
+        try:
+            report = check_pdf_format(content, filename)
+            return {"status": "success", "report": report}
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Lỗi phân tích file PDF: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ tệp định dạng .docx hoặc .pdf")
+
+
+@app.post("/api/fix-format")
+async def fix_format(file: UploadFile = File(...)):
+    filename = file.filename
+    if not filename.endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Tính năng tự động sửa định dạng chỉ hỗ trợ tệp .docx")
+        
+    try:
+        content = await file.read()
+        fixed_content = fix_docx_format(content)
+        out_filename = filename.replace(".docx", "_fixed_UEH.docx")
+        
+        from fastapi.responses import StreamingResponse
+        import io
+        return StreamingResponse(
+            io.BytesIO(fixed_content),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename={out_filename}"}
+        )
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Lỗi tự động sửa định dạng: {str(e)}")
+
+
 

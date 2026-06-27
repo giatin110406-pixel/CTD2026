@@ -37,6 +37,180 @@ const examiners = [
         description: 'Chuyên gia Healthcare Systems, an toàn người bệnh và cải tiến chất lượng lâm sàng thực tế.'
     }
 ];
+const cleanMathExpression = (expr) => {
+    let clean = expr;
+    // Replace \text{...} with ...
+    clean = clean.replace(/\\text\{([^}]+)\}/g, '$1');
+    // Replace \frac{A}{B} with (A) / (B)
+    clean = clean.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)');
+    // Greek letters
+    const greek = {
+        'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε',
+        'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'iota': 'ι', 'kappa': 'κ',
+        'lambda': 'λ', 'mu': 'μ', 'nu': 'ν', 'xi': 'ξ', 'pi': 'π',
+        'rho': 'ρ', 'sigma': 'σ', 'tau': 'τ', 'upsilon': 'υ', 'phi': 'φ',
+        'chi': 'χ', 'psi': 'ψ', 'omega': 'ω',
+        'Delta': 'Δ', 'Gamma': 'Γ', 'Theta': 'Θ', 'Lambda': 'Λ', 'Xi': 'Ξ',
+        'Pi': 'Π', 'Sigma': 'Σ', 'Phi': 'Φ', 'Psi': 'Ψ', 'Omega': 'Ω'
+    };
+    Object.keys(greek).forEach(key => {
+        const re = new RegExp('\\\\' + key, 'g');
+        clean = clean.replace(re, greek[key]);
+    });
+    // Replace standard LaTeX symbols
+    clean = clean.replace(/\\cdot/g, '·');
+    clean = clean.replace(/\\times/g, '×');
+    clean = clean.replace(/\\le/g, '≤');
+    clean = clean.replace(/\\ge/g, '≥');
+    clean = clean.replace(/\\ne/g, '≠');
+    clean = clean.replace(/\\approx/g, '≈');
+    clean = clean.replace(/\\infty/g, '∞');
+    clean = clean.replace(/\\partial/g, '∂');
+    clean = clean.replace(/\\nabla/g, '∇');
+    
+    // Replace backslash functions
+    clean = clean.replace(/\\(log|ln|sin|cos|tan|exp|sqrt)/g, '$1');
+    // Clean any remaining backslashes
+    clean = clean.replace(/\\/g, '');
+    return clean;
+};
+
+const renderMessageText = (text) => {
+    if (!text) return null;
+    
+    const lines = text.split('\n');
+    let inList = false;
+    let listItems = [];
+    const elements = [];
+    
+    const parseInlineStyles = (str) => {
+        if (!str) return '';
+        
+        // Split by inline and block math
+        const tokens = str.split(/(\$\$[^\$]+\$\$|\$[^\$]+\$)/g);
+        
+        return tokens.flatMap((token, idx) => {
+            if (token.startsWith('$$') && token.endsWith('$$')) {
+                const mathContent = token.slice(2, -2);
+                const cleaned = cleanMathExpression(mathContent);
+                return (
+                    <div 
+                        key={`block-math-${idx}`} 
+                        style={{ 
+                            fontFamily: "'New Computer Modern Math', 'Times New Roman', Times, serif", 
+                            fontStyle: 'italic', 
+                            textAlign: 'center', 
+                            margin: '12px 0', 
+                            fontSize: '15.5px',
+                            backgroundColor: 'rgba(0,0,0,0.02)',
+                            padding: '10px 16px',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(0,0,0,0.04)',
+                            display: 'block'
+                        }}
+                    >
+                        {cleaned}
+                    </div>
+                );
+            } else if (token.startsWith('$') && token.endsWith('$')) {
+                const mathContent = token.slice(1, -1);
+                const cleaned = cleanMathExpression(mathContent);
+                return (
+                    <span 
+                        key={`inline-math-${idx}`} 
+                        style={{ 
+                            fontFamily: "'New Computer Modern Math', 'Times New Roman', Times, serif", 
+                            fontStyle: 'italic', 
+                            padding: '2px 6px',
+                            backgroundColor: 'rgba(0,0,0,0.03)',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            color: '#111111',
+                            margin: '0 2px'
+                        }}
+                    >
+                        {cleaned}
+                    </span>
+                );
+            } else {
+                const boldParts = token.split('**');
+                return boldParts.flatMap((boldPart, boldIdx) => {
+                    const isBold = boldIdx % 2 === 1;
+                    const italicParts = boldPart.split('*');
+                    const renderedParts = italicParts.map((italicPart, italicIdx) => {
+                        const isItalic = italicIdx % 2 === 1;
+                        if (isItalic) {
+                            return <em key={`em-${idx}-${boldIdx}-${italicIdx}`} style={{ fontStyle: 'italic' }}>{italicPart}</em>;
+                        }
+                        return italicPart;
+                    });
+                    if (isBold) {
+                        return <strong key={`strong-${idx}-${boldIdx}`} style={{ fontWeight: 800 }}>{renderedParts}</strong>;
+                    }
+                    return renderedParts;
+                });
+            }
+        });
+    };
+
+    lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        
+        if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+            if (!inList) {
+                inList = true;
+                listItems = [];
+            }
+            const itemContent = trimmed.substring(2);
+            listItems.push(
+                <li key={`li-${index}`} style={{ marginBottom: '4px', lineHeight: '1.6' }}>
+                    {parseInlineStyles(itemContent)}
+                </li>
+            );
+        } else {
+            if (inList) {
+                elements.push(
+                    <ul key={`ul-${index}`} style={{ margin: '8px 0 8px 20px', paddingLeft: '0', listStyleType: 'disc' }}>
+                        {listItems}
+                    </ul>
+                );
+                inList = false;
+            }
+            
+            if (trimmed === '') {
+                elements.push(<div key={`br-${index}`} style={{ height: '8px' }} />);
+            } else if (trimmed.startsWith('### ')) {
+                elements.push(
+                    <h5 key={`h5-${index}`} style={{ fontSize: '14px', fontWeight: 700, margin: '12px 0 6px 0', color: '#2C2A27' }}>
+                        {parseInlineStyles(trimmed.substring(4))}
+                    </h5>
+                );
+            } else if (trimmed.startsWith('## ')) {
+                elements.push(
+                    <h4 key={`h4-${index}`} style={{ fontSize: '15px', fontWeight: 700, margin: '14px 0 8px 0', color: '#2C2A27' }}>
+                        {parseInlineStyles(trimmed.substring(3))}
+                    </h4>
+                );
+            } else {
+                elements.push(
+                    <p key={`p-${index}`} style={{ margin: '0 0 8px 0', lineHeight: '1.6' }}>
+                        {parseInlineStyles(line)}
+                    </p>
+                );
+            }
+        }
+    });
+    
+    if (inList) {
+        elements.push(
+            <ul key={`ul-end`} style={{ margin: '8px 0 8px 20px', paddingLeft: '0', listStyleType: 'disc' }}>
+                {listItems}
+            </ul>
+        );
+    }
+    
+    return <div style={{ wordBreak: 'break-word' }}>{elements}</div>;
+};
 
 function VivaPanel({ currentPdf }) {
     const [isSessionStarted, setIsSessionStarted] = useState(false)
@@ -491,8 +665,8 @@ function VivaPanel({ currentPdf }) {
                                             />
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 {/* Họ tên và Vai trò */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                    <h5 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2C2A27' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                                    <h5 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2C2A27', lineHeight: '1.2' }}>
                                                         {ex.name}
                                                     </h5>
                                                     <span style={{
@@ -501,9 +675,10 @@ function VivaPanel({ currentPdf }) {
                                                         borderRadius: '6px',
                                                         fontSize: '10.5px',
                                                         fontWeight: '600',
-                                                        color: '#7A756B'
+                                                        color: '#7A756B',
+                                                        display: 'inline-block'
                                                     }}>
-                                                        {ex.id === 'examiner_practical' ? 'Chủ tịch' : (ex.id === 'examiner_methodology' ? 'Phản biện 1' : 'Phản biện 2')}
+                                                        {ex.id === 'examiner_practical' ? 'Phản biện 3' : (ex.id === 'examiner_methodology' ? 'Phản biện 1' : 'Phản biện 2')}
                                                     </span>
                                                 </div>
 
@@ -514,14 +689,7 @@ function VivaPanel({ currentPdf }) {
 
                                                 {/* Mô tả hoặc Câu hỏi chất vấn hiện tại */}
                                                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#555555', lineHeight: 1.5, borderTop: '1px solid rgba(122, 117, 107, 0.1)', paddingTop: '6px' }}>
-                                                    {isActive && activeQuestion ? (
-                                                        <>
-                                                            <strong style={{ color: '#2C2A27', display: 'block', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Câu hỏi hiện tại:</strong>
-                                                            <span style={{ fontStyle: 'italic' }}>"{activeQuestion}"</span>
-                                                        </>
-                                                    ) : (
-                                                        <span>{ex.description}</span>
-                                                    )}
+                                                    <span>{ex.description}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -626,11 +794,10 @@ function VivaPanel({ currentPdf }) {
                                                 borderRadius: isUser ? '16px 16px 4px 16px' : '16px',
                                                 fontSize: '14.5px',
                                                 lineHeight: 1.6,
-                                                whiteSpace: 'pre-wrap',
                                                 boxShadow: '0 1px 2px rgba(122,117,107,0.02)',
                                                 border: isUser ? '1px solid #FFD000' : '1px solid rgba(122, 117, 107, 0.2)'
                                             }}>
-                                                {msg.text}
+                                                {renderMessageText(msg.text)}
                                             </div>
                                         </div>
                                     </div>

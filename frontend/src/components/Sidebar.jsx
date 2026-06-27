@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Menu, Plus, HelpCircle, History, Settings, FileText, GraduationCap, MessageSquare } from 'lucide-react'
+import { Menu, Plus, HelpCircle, History, Settings, FileText, GraduationCap, MessageSquare, ClipboardCheck } from 'lucide-react'
 
 function Sidebar({ onSelectPdf, currentPdf, currentView, onChangeView }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
@@ -157,6 +157,23 @@ function Sidebar({ onSelectPdf, currentPdf, currentView, onChangeView }) {
                             strokeWidth={1.5} 
                             fill={currentView === 'viva' ? '#ffffff' : (hoveredIcon === 'viva' ? '#2C2A27' : 'transparent')} 
                             style={{ color: currentView === 'viva' ? '#ffffff' : '#2C2A27' }} 
+                        />
+                    </div>
+
+                    {/* Format Checker Button */}
+                    <div 
+                        style={iconButtonStyle('checker', currentView === 'checker')}
+                        onMouseEnter={() => setHoveredIcon('checker')}
+                        onMouseLeave={() => setHoveredIcon(null)}
+                        onClick={() => onChangeView('checker')}
+                        title="Kiểm tra & Sửa định dạng UEH"
+                        className={currentView === 'checker' ? 'active-pulse' : ''}
+                    >
+                        <ClipboardCheck 
+                            size={20} 
+                            strokeWidth={1.5} 
+                            fill={currentView === 'checker' ? '#ffffff' : (hoveredIcon === 'checker' ? '#2C2A27' : 'transparent')} 
+                            style={{ color: currentView === 'checker' ? '#ffffff' : '#2C2A27' }} 
                         />
                     </div>
 
