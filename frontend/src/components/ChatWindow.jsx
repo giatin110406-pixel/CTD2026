@@ -144,13 +144,28 @@ function ChatWindow({ setActivePdfName }) {
                     if (data.sources && data.sources.length > 0) {
                         finalText += '\n\n**Nguồn trích dẫn tìm thấy:**';
                         data.sources.forEach((src, idx) => {
-                            finalText += `\n[${idx + 1}] ${src.title} - ${src.authors} (${src.year})`;
+                            if (typeof src === 'string') {
+                                finalText += `\n[${idx + 1}] ${src}`;
+                            } else {
+                                finalText += `\n[${idx + 1}] ${src.title || 'N/A'} - ${src.authors || 'N/A'} (${src.year || 'N/A'})`;
+                            }
                         });
                     }
 
 
-                    // Tự động gán danh sách nguồn tài liệu tham khảo thực tế từ RAG hoặc mock
-                    let msgSources = data.sources || [];
+                    // Tự động gán danh sách nguồn tài liệu tham khảo thực tế từ RAG hoặc mock, chuẩn hóa sang object để tương thích
+                    let msgSources = (data.sources || []).map(src => {
+                        if (typeof src === 'string') {
+                            return {
+                                title: src,
+                                authors: "N/A",
+                                year: "2026",
+                                journal: "N/A",
+                                pdf_name: src
+                            };
+                        }
+                        return src;
+                    });
                     if (msgSources.length === 0) {
                         let mockPdf = "thamkhao.pdf";
                         let mockTitle = "Tài liệu tham khảo AI & RAG";

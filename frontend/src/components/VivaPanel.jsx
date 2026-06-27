@@ -6,35 +6,35 @@ import { Send, Sparkles, Mic, HelpCircle, RefreshCw, Award, CheckCircle, AlertTr
 const API_BASE_URL = 'http://127.0.0.1:8002';
 
 const examiners = [
-    { 
-        id: 'examiner_methodology', 
-        name: 'GS. Gordon Nghiêm Túc', 
-        role: 'Chuyên gia Phương pháp luận & Thống kê Y sinh', 
-        avatar: 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Gordon_Ramsay_colour_Allan_Warren.jpg',
+    {
+        id: 'examiner_methodology',
+        name: 'Prof. Ewout W. Steyerberg',
+        role: 'Chuyên gia Thống kê Y sinh & Mô hình Dự báo Lâm sàng (Erasmus University Rotterdam)',
+        avatar: 'https://research.umcutrecht.nl/custom/themes/umcu/nrdq-theme/storage/ebaa99d6-a73f-48ca-bc7a-d2a99fb9b0ee/files/MDJkMzY4ZWFi/D3X_5397Ewout_W._Steyerberg_minimal.jpg',
         bgColor: '#F2EAE0',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Khắt khe số liệu, thiết kế nghiên cứu và chọn mẫu. Rất thẳng tính, đanh thép.'
+        description: 'Chuyên gia hàng đầu về Clinical Prediction Models, Risk Stratification và Validation Studies.'
     },
-    { 
-        id: 'examiner_novelty', 
-        name: 'PGS. Elon Đột Phá', 
-        role: 'Chuyên gia Phản biện Tạp chí & Tính mới', 
-        avatar: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Elon_Musk_Royal_Society.jpg',
+    {
+        id: 'examiner_novelty',
+        name: 'Prof. Jennifer A. Doudna',
+        role: 'Nhà Sinh học Phân tử & CRISPR Pioneer (Nobel Prize 2020, UC Berkeley)',
+        avatar: 'https://www.altoslabs.com/_next/image?url=https%3A%2F%2Fa-us.storyblok.com%2Ff%2F1016638%2F512x614%2F176c77a5ff%2Fjennifer-doudna.png&w=3840&q=75',
         bgColor: '#FAF6EE',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Ám ảnh tư duy First Principles và Research Gap. Tránh cải tiến nửa vời.'
+        description: 'Đồng nhận giải Nobel Hóa học năm 2020 vì phát minh ra công nghệ chỉnh sửa gen CRISPR-Cas9.'
     },
-    { 
-        id: 'examiner_practical', 
-        name: 'TS. Shark Thực Chiến', 
-        role: 'Chuyên gia Lâm sàng & Tính thực tiễn', 
-        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&h=256&q=80',
+    {
+        id: 'examiner_practical',
+        name: 'Prof. Atul Gawande',
+        role: 'Bác sĩ Phẫu thuật, Nhà cải tiến Chất lượng & Tác giả Y học (Harvard Medical School)',
+        avatar: 'https://bigthink.com/wp-content/uploads/2010/01/Atul-Gawande-Profile_Headshot_Final.jpg?resize=256,256',
         bgColor: '#F2EAE0',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Thực tế, thực dụng. Chỉ quan tâm tính khả thi và ứng dụng lâm sàng.'
+        description: 'Chuyên gia Healthcare Systems, an toàn người bệnh và cải tiến chất lượng lâm sàng thực tế.'
     }
 ];
 
@@ -88,7 +88,7 @@ function VivaPanel({ currentPdf }) {
         setScorecard(null);
         setHistory([]);
         setPdfContext('');
-        
+
         let titleToSubmit = getPdfTitle();
         if (uploadedFile) {
             titleToSubmit = uploadedFile.name.replace('.pdf', '');
@@ -115,7 +115,7 @@ function VivaPanel({ currentPdf }) {
                 } catch (_) {
                     try {
                         errorDetail = await response.text();
-                    } catch (__) {}
+                    } catch (__) { }
                 }
                 throw new Error(`HTTP ${response.status}: ${errorDetail}`);
             }
@@ -125,7 +125,7 @@ function VivaPanel({ currentPdf }) {
             setIsCompletelyNew(data.is_completely_new);
             setSimilarityScore(data.top_similarity);
             setPdfContext(data.pdf_context || '');
-            
+
             // Khởi tạo lịch sử trò chuyện
             setHistory(data.history || [
                 { sender: 'bot', examiner_id: data.current_examiner_id, text: data.question }
@@ -186,7 +186,7 @@ function VivaPanel({ currentPdf }) {
                 } catch (_) {
                     try {
                         errorDetail = await response.text();
-                    } catch (__) {}
+                    } catch (__) { }
                 }
                 throw new Error(`HTTP ${response.status}: ${errorDetail}`);
             }
@@ -200,10 +200,10 @@ function VivaPanel({ currentPdf }) {
                 setShowScorecardModal(true);
                 setHistory(prev => [
                     ...prev,
-                    { 
-                        sender: 'bot', 
-                        examiner_id: 'host', 
-                        text: `Buổi phản biện đã kết thúc! Hội đồng đã hoàn thành việc chấm điểm và đánh giá đề tài của bạn. Điểm số đề xuất: ${data.scorecard.score}/10.\n\nNhấp vào nút "Xem bảng điểm kết quả" bên dưới để xem phân tích chi tiết.` 
+                    {
+                        sender: 'bot',
+                        examiner_id: 'host',
+                        text: `Buổi phản biện đã kết thúc! Hội đồng đã hoàn thành việc chấm điểm và đánh giá đề tài của bạn. Điểm số đề xuất: ${data.scorecard.score}/10.\n\nNhấp vào nút "Xem bảng điểm kết quả" bên dưới để xem phân tích chi tiết.`
                     }
                 ]);
             } else {
@@ -211,10 +211,10 @@ function VivaPanel({ currentPdf }) {
                 setCurrentExaminerId(data.current_examiner_id);
                 setHistory(prev => [
                     ...prev,
-                    { 
-                        sender: 'bot', 
-                        examiner_id: data.current_examiner_id, 
-                        text: data.question 
+                    {
+                        sender: 'bot',
+                        examiner_id: data.current_examiner_id,
+                        text: data.question
                     }
                 ]);
             }
@@ -265,11 +265,11 @@ function VivaPanel({ currentPdf }) {
     `;
 
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', height: '100%', position: 'relative', borderRadius: '32px', border: '1px solid rgba(0, 0, 0, 0.04)', boxShadow: '0 4px 30px rgba(0, 0, 0, 0.02), 0 10px 50px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#F2EAE0', height: '100%', position: 'relative', borderRadius: '32px', border: '1px solid rgba(0, 0, 0, 0.04)', boxShadow: '0 4px 30px rgba(0, 0, 0, 0.02), 0 10px 50px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
             <style>{styleSheet}</style>
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: 'none', backgroundColor: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: 'none', backgroundColor: '#F2EAE0' }}>
                 <div>
                     <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#111111', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.5px' }}>
                         <Shield size={20} style={{ color: '#111111' }} /> Hội đồng phản biện ảo <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#000000', color: '#ffffff', padding: '2px 8px', borderRadius: '9999px', letterSpacing: '0.5px' }}>AI VIVA PANEL</span>
@@ -292,7 +292,7 @@ function VivaPanel({ currentPdf }) {
 
             {!isSessionStarted ? (
                 // MÀN HÌNH WELCOME
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', overflowY: 'auto' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', overflowY: 'auto', backgroundColor: '#F2EAE0' }}>
                     <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#000000', display: 'flex', alignItems: 'center', color: '#ffffff', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
                         <GraduationCap size={40} style={{ color: '#ffffff' }} />
                     </div>
@@ -300,20 +300,20 @@ function VivaPanel({ currentPdf }) {
                         Bảo vệ thử luận văn của bạn trước Hội đồng AI
                     </h1>
                     <p style={{ fontSize: '15px', color: '#64748b', lineHeight: 1.6, marginBottom: '24px', fontWeight: 500 }}>
-                        Bạn sẽ đối chất lần lượt với 3 vị Giám khảo AI tượng trưng cho 3 trường phái học thuật: 
-                        Phương pháp luận (GS. Gordon Ramsay style), Tính mới (PGS. Elon Musk style) và Tính thực tiễn (TS. Shark Hưng style).
+                        Bạn sẽ đối chất lần lượt với 3 vị Giám khảo AI tượng trưng cho 3 trường phái học thuật:
+                        Phương pháp luận (Prof. Ewout Steyerberg style), Tính mới (Prof. Jennifer Doudna style) và Tính thực tiễn (Prof. Atul Gawande style).
                         Các câu hỏi sẽ được sinh tự động dựa trên tài liệu PDF bạn đã nạp kết hợp dữ liệu RAG.
                     </p>
 
                     {/* Khung tải lên tệp luận văn PDF mới */}
-                    <div 
+                    <div
                         style={{
                             width: '100%',
                             maxWidth: '500px',
                             margin: '0 auto 16px auto',
                             padding: '24px',
                             backgroundColor: '#ffffff',
-                            border: '2px dashed rgba(0, 0, 0, 0.1)',
+                            border: '2px dashed rgba(122, 117, 107, 0.25)',
                             borderRadius: '24px',
                             cursor: 'pointer',
                             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -325,13 +325,13 @@ function VivaPanel({ currentPdf }) {
                             boxSizing: 'border-box'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = '#FFD000';
-                            e.currentTarget.style.backgroundColor = '#FAF6EE';
+                            e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.4)';
+                            e.currentTarget.style.backgroundColor = '#f5f5f5';
                         }}
                         onMouseLeave={(e) => {
                             if (!uploadedFile) {
-                                e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.2)';
-                                e.currentTarget.style.backgroundColor = '#FAF6EE';
+                                e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.25)';
+                                e.currentTarget.style.backgroundColor = '#ffffff';
                             }
                         }}
                         onClick={() => document.getElementById('viva-file-import')?.click()}
@@ -355,7 +355,7 @@ function VivaPanel({ currentPdf }) {
                                 setUploadedFile(file);
                             }}
                         />
-                        
+
                         {uploadedFile ? (
                             <>
                                 <FileText size={32} style={{ color: '#2C2A27' }} />
@@ -408,16 +408,7 @@ function VivaPanel({ currentPdf }) {
                         )}
                     </div>
 
-                    {/* Hiển thị tệp hiện hành nếu không upload */}
-                    {!uploadedFile && (
-                        <div style={{ width: '100%', maxWidth: '500px', padding: '14px 18px', backgroundColor: '#FAF6EE', border: '1px solid rgba(122, 117, 107, 0.2)', borderRadius: '24px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'left', marginBottom: '24px', boxSizing: 'border-box' }}>
-                            <FileText size={20} style={{ color: '#2C2A27' }} />
-                            <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#2C2A27', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPdfTitle()}</div>
-                                <div style={{ fontSize: '11px', color: '#7A756B', fontWeight: 500 }}>{currentPdf ? "Tệp PDF từ Sidebar đang được đính kèm" : "Mặc định: Sử dụng đề tài luận văn nghiên cứu chung"}</div>
-                            </div>
-                        </div>
-                    )}
+
 
                     <button
                         onClick={startVivaSession}
@@ -431,15 +422,15 @@ function VivaPanel({ currentPdf }) {
             ) : (
                 // MÀN HÌNH CHẤT VẤN CHÍNH
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                    
+
                     {/* CỘT TRÁI: DANH SÁCH GIÁM KHẢO */}
-                    <div style={{ width: '360px', borderRight: 'none', backgroundColor: '#FAF6EE', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+                    <div style={{ width: '360px', borderRight: 'none', backgroundColor: '#FAF6EE', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
                         <h4 style={{ margin: '0 0 4px 0', fontSize: '13px', fontWeight: 700, color: '#2C2A27', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             Hội đồng giám khảo ảo
                         </h4>
-                        
+
                         {/* Status badge của tài liệu nghiên cứu */}
-                        <div style={{ padding: '14px', borderRadius: '24px', backgroundColor: '#F2EAE0', border: '1px solid rgba(122, 117, 107, 0.2)', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{ padding: '10px 12px', borderRadius: '16px', backgroundColor: '#F2EAE0', border: '1px solid rgba(122, 117, 107, 0.2)', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                             {history.length === 0 ? (
                                 <>
                                     <RefreshCw size={16} style={{ color: '#7A756B', flexShrink: 0, marginTop: '2px', animation: 'spin 2s linear infinite' }} />
@@ -467,46 +458,73 @@ function VivaPanel({ currentPdf }) {
                             )}
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
                             {examiners.map(ex => {
                                 const isActive = currentExaminerId === ex.id && !isFinished;
+                                const activeQuestion = history.slice().reverse().find(msg => msg.sender === 'bot' && msg.examiner_id === ex.id)?.text;
                                 return (
                                     <div
                                         key={ex.id}
                                         className={isActive ? 'active-examiner viva-active-card' : 'viva-inactive-card'}
                                         style={{
-                                            padding: '16px',
-                                            borderRadius: '24px',
+                                            padding: '12px',
+                                            borderRadius: '16px',
                                             border: isActive ? '1.5px solid #FFD000' : '1.5px solid rgba(122, 117, 107, 0.2)',
                                             backgroundColor: '#FAF6EE',
                                             transition: 'all 0.3s ease',
                                             position: 'relative',
                                         }}
                                     >
-                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                            <img 
-                                                src={ex.avatar} 
+                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                            <img
+                                                src={ex.avatar}
                                                 alt={ex.name}
-                                                style={{ 
-                                                    width: '44px', 
-                                                    height: '44px', 
-                                                    borderRadius: '12px', 
+                                                style={{
+                                                    width: '64px',
+                                                    height: '64px',
+                                                    borderRadius: '14px',
                                                     objectFit: 'cover',
-                                                    boxShadow: '0 2px 4px rgba(122,117,107,0.03)'
+                                                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                                                    flexShrink: 0,
+                                                    boxShadow: '0 2px 8px rgba(122, 117, 107, 0.05)'
                                                 }}
                                             />
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <h5 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#2C2A27' }}>
-                                                    {ex.name}
-                                                </h5>
-                                                <span style={{ fontSize: '11px', color: '#7A756B', fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {/* Họ tên và Vai trò */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                    <h5 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2C2A27' }}>
+                                                        {ex.name}
+                                                    </h5>
+                                                    <span style={{
+                                                        backgroundColor: 'rgba(0,0,0,0.04)',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '10.5px',
+                                                        fontWeight: '600',
+                                                        color: '#7A756B'
+                                                    }}>
+                                                        {ex.id === 'examiner_practical' ? 'Chủ tịch' : (ex.id === 'examiner_methodology' ? 'Phản biện 1' : 'Phản biện 2')}
+                                                    </span>
+                                                </div>
+
+                                                {/* Chuyên môn / Học vị */}
+                                                <span style={{ fontSize: '11px', color: '#7A756B', fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }} title={ex.role}>
                                                     {ex.role}
                                                 </span>
+
+                                                {/* Mô tả hoặc Câu hỏi chất vấn hiện tại */}
+                                                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#555555', lineHeight: 1.5, borderTop: '1px solid rgba(122, 117, 107, 0.1)', paddingTop: '6px' }}>
+                                                    {isActive && activeQuestion ? (
+                                                        <>
+                                                            <strong style={{ color: '#2C2A27', display: 'block', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Câu hỏi hiện tại:</strong>
+                                                            <span style={{ fontStyle: 'italic' }}>"{activeQuestion}"</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>{ex.description}</span>
+                                                    )}
+                                                </p>
                                             </div>
                                         </div>
-                                        <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#7A756B', lineHeight: 1.4, borderTop: '1px solid rgba(122, 117, 107, 0.2)', paddingTop: '8px' }}>
-                                            {ex.description}
-                                        </p>
                                         {isActive && (
                                             <span style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '9px', fontWeight: 800, backgroundColor: '#2C2A27', color: '#ffffff', border: '1px solid #FFD000', padding: '2px 8px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <span className="nothing-red-dot"></span> Đang hỏi
@@ -520,7 +538,7 @@ function VivaPanel({ currentPdf }) {
 
                     {/* CỘT PHẢI: KHUNG ĐẤU TRƯỜNG PHẢN BIỆN */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#F2EAE0' }}>
-                        
+
                         {/* Conversation Box */}
                         <div style={{ flex: 1, padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             {history.map((msg, index) => {
@@ -531,28 +549,28 @@ function VivaPanel({ currentPdf }) {
                                     bgColor: '#F2EAE0'
                                 };
                                 return (
-                                    <div 
-                                        key={index} 
-                                        style={{ 
-                                            display: 'flex', 
-                                            gap: '12px', 
-                                            maxWidth: '80%', 
+                                    <div
+                                        key={index}
+                                        style={{
+                                            display: 'flex',
+                                            gap: '12px',
+                                            maxWidth: '80%',
                                             alignSelf: isUser ? 'flex-end' : 'flex-start',
                                             flexDirection: isUser ? 'row-reverse' : 'row'
                                         }}
                                     >
                                         {/* Avatar */}
                                         {isUser ? (
-                                            <div style={{ 
-                                                width: '36px', 
-                                                height: '36px', 
-                                                borderRadius: '50%', 
-                                                backgroundColor: '#2C2A27', 
+                                            <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                backgroundColor: '#2C2A27',
                                                 color: '#ffffff',
                                                 border: '1px solid #FFD000',
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                justifyContent: 'center', 
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
                                                 fontSize: '13px',
                                                 fontWeight: 700,
                                                 flexShrink: 0
@@ -561,29 +579,29 @@ function VivaPanel({ currentPdf }) {
                                             </div>
                                         ) : (
                                             examiner.avatar.startsWith('http') ? (
-                                                <img 
-                                                    src={examiner.avatar} 
+                                                <img
+                                                    src={examiner.avatar}
                                                     alt={examiner.name}
-                                                    style={{ 
-                                                        width: '36px', 
-                                                        height: '36px', 
-                                                        borderRadius: '50%', 
+                                                    style={{
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        borderRadius: '50%',
                                                         objectFit: 'cover',
                                                         flexShrink: 0,
                                                         boxShadow: '0 2px 4px rgba(122,117,107,0.03)'
                                                     }}
                                                 />
                                             ) : (
-                                                <div style={{ 
-                                                    width: '36px', 
-                                                    height: '36px', 
-                                                    borderRadius: '50%', 
-                                                    backgroundColor: '#2C2A27', 
+                                                <div style={{
+                                                    width: '36px',
+                                                    height: '36px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: '#2C2A27',
                                                     color: '#FFD000',
                                                     border: '1px solid #FFD000',
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
                                                     flexShrink: 0
                                                 }}>
                                                     {examiner.avatar === 'cap' ? (
@@ -594,7 +612,7 @@ function VivaPanel({ currentPdf }) {
                                                 </div>
                                             )
                                         )}
-                                        
+
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             {!isUser && (
                                                 <span style={{ fontSize: '11px', fontWeight: 600, color: '#7A756B', marginBottom: '4px', marginLeft: '4px' }}>
@@ -621,16 +639,16 @@ function VivaPanel({ currentPdf }) {
 
                             {isLoading && (
                                 <div style={{ display: 'flex', gap: '12px', alignSelf: 'flex-start' }}>
-                                    <div style={{ 
-                                        width: '36px', 
-                                        height: '36px', 
-                                        borderRadius: '50%', 
-                                        backgroundColor: '#2C2A27', 
+                                    <div style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#2C2A27',
                                         color: '#FFD000',
                                         border: '1px solid #FFD000',
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center', 
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         fontSize: '16px',
                                         animation: 'spin 2s linear infinite'
                                     }}>
@@ -676,20 +694,20 @@ function VivaPanel({ currentPdf }) {
                                     border: '1.5px solid rgba(122, 117, 107, 0.2)',
                                     transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                 }}>
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={toggleMicrophone}
-                                        style={{ 
-                                            background: '#2C2A27', 
-                                            border: isMicrophoneActive ? '1px solid #FFD000' : '1px solid transparent', 
-                                            cursor: 'pointer', 
-                                            color: '#ffffff', 
-                                            width: '36px', 
-                                            height: '36px', 
-                                            borderRadius: '50%', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
+                                        style={{
+                                            background: '#2C2A27',
+                                            border: isMicrophoneActive ? '1px solid #FFD000' : '1px solid transparent',
+                                            cursor: 'pointer',
+                                            color: '#ffffff',
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                             marginRight: '4px',
                                         }}
@@ -703,8 +721,8 @@ function VivaPanel({ currentPdf }) {
                                         onChange={(e) => setUserAnswer(e.target.value)}
                                         disabled={isLoading}
                                         placeholder={isMicrophoneActive ? "Đang lắng nghe giọng nói phản biện của bạn..." : "Nhập câu trả lời phản biện của bạn trước hội đồng..."}
-                                        style={{ 
-                                            flex: 1, 
+                                        style={{
+                                            flex: 1,
                                             border: 'none',
                                             backgroundColor: 'transparent',
                                             outline: 'none',
@@ -716,17 +734,17 @@ function VivaPanel({ currentPdf }) {
                                     <button
                                         type="submit"
                                         disabled={!userAnswer.trim() || isLoading}
-                                        style={{ 
-                                            backgroundColor: (!userAnswer.trim() || isLoading) ? 'transparent' : '#2C2A27', 
-                                            border: (!userAnswer.trim() || isLoading) ? 'none' : '1px solid #FFD000', 
-                                            cursor: (!userAnswer.trim() || isLoading) ? 'default' : 'pointer', 
-                                            color: (!userAnswer.trim() || isLoading) ? '#7A756B' : '#ffffff', 
-                                            width: '36px', 
-                                            height: '36px', 
-                                            borderRadius: '50%', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
+                                        style={{
+                                            backgroundColor: (!userAnswer.trim() || isLoading) ? 'transparent' : '#2C2A27',
+                                            border: (!userAnswer.trim() || isLoading) ? 'none' : '1px solid #FFD000',
+                                            cursor: (!userAnswer.trim() || isLoading) ? 'default' : 'pointer',
+                                            color: (!userAnswer.trim() || isLoading) ? '#7A756B' : '#ffffff',
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                         }}
                                         title="Gửi câu trả lời"
@@ -747,7 +765,7 @@ function VivaPanel({ currentPdf }) {
             {showScorecardModal && scorecard && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyStyle: 'center', justifyContent: 'center', zIndex: 999 }}>
                     <div style={{ backgroundColor: '#F2EAE0', borderRadius: '32px', border: '1px solid rgba(122, 117, 107, 0.2)', width: '90%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(122,117,107,0.05), 0 10px 10px -5px rgba(122,117,107,0.02)', overflow: 'hidden' }}>
-                        
+
                         {/* Modal Header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid rgba(122, 117, 107, 0.2)', backgroundColor: '#F2EAE0' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -756,7 +774,7 @@ function VivaPanel({ currentPdf }) {
                                     KẾT QUẢ ĐÁNH GIÁ CỦA HỘI ĐỒNG PHẢN BIỆN
                                 </h3>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setShowScorecardModal(false)}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2C2A27', padding: '4px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyStyle: 'center' }}
                             >
@@ -766,7 +784,7 @@ function VivaPanel({ currentPdf }) {
 
                         {/* Modal Body */}
                         <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                            
+
                             {/* Score Display Row */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyStyle: 'center', justifyContent: 'center', flexDirection: 'column', padding: '20px', backgroundColor: '#FAF6EE', borderRadius: '24px', border: '1px solid rgba(122, 117, 107, 0.2)' }}>
                                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#7A756B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>

@@ -145,25 +145,46 @@ async def chat_with_thesis(request: ChatRequest):
         # 2. Đưa vào hàm custom để Gemini trả lời dựa trên ngữ cảnh
         answer = custom_stuff_documents(llm, prompt_template, docs, user_query)
        
-        # 3. Thu thập thông tin nguồn trích dẫn
-        sources = []
+        # 3. Lấy danh sách tên file PDF độc nhất từ metadata của các docs tìm thấy
+        sources_list = []
         for doc in docs:
-            meta = doc.metadata
-            pdf_path = meta.get("source", meta.get("pdf_path", ""))
-            pdf_name = os.path.basename(pdf_path) if pdf_path else ""
-            source_info = {
-                "title": meta.get("title", "N/A"),
-                "authors": meta.get("authors", "N/A"),
-                "year": meta.get("year", "N/A"),
-                "journal": meta.get("journal", "N/A"),
-                "pdf_name": pdf_name
-            }
-            if source_info not in sources:
-                sources.append(source_info)
+            # Lấy tên file thực tế từ metadata (ví dụ: file_name, hoặc trích xuất từ source/pdf_path)
+            file_name = doc.metadata.get("file_name")
+            if not file_name:
+                pdf_path = doc.metadata.get("source") or doc.metadata.get("pdf_path")
+                if pdf_path:
+                    file_name = os.path.basename(pdf_path)
+            if not file_name:
+                file_name = doc.metadata.get("title", "document") + ".pdf"
+            
+            # Đảm bảo tên file sạch, kết thúc bằng đuôi .pdf
+            if file_name and not file_name.endswith(".pdf"):
+                file_name = file_name + ".pdf"
                 
-        return {"status": "success", "answer": answer, "sources": sources}
+            # Đảm bảo không bị trùng lặp
+            if file_name not in sources_list:
+                sources_list.append(file_name)
+                
+        # Cấu trúc dữ liệu phản hồi mới (Response Payload)
+        return {
+            "answer": answer,
+            "sources": sources_list
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        err_msg = str(e)
+        print(f"Lỗi chat_with_thesis: {traceback.format_exc()}")
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+            raise HTTPException(
+                status_code=429,
+                detail="Tài khoản Gemini của bạn bị giới hạn lượt gọi (Rate Limit 429). Vui lòng thử lại sau 1-2 phút."
+            )
+        elif "API_KEY" in err_msg or "API key not valid" in err_msg:
+            raise HTTPException(
+                status_code=400,
+                detail="Khóa API Gemini (GEMINI_API_KEY) trong file .env không hợp lệ hoặc đã hết hạn."
+            )
+        raise HTTPException(status_code=500, detail=f"Lỗi máy chủ: {err_msg}")
 
 
 
