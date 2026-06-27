@@ -151,7 +151,7 @@ function App() {
               }}
             >
               <iframe
-                src={`http://127.0.0.1:8002/api/pdf/${activePdfName}`}
+                src={`http://127.0.0.1:8001/api/pdf/${activePdfName}`}
                 title="PDF Modal Viewer"
                 style={{
                   width: '100%',

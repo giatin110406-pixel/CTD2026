@@ -4,7 +4,85 @@ import { Send, Sparkles, Mic, Paperclip, FileText, BarChart2, BookOpen, FileUp, 
 
 
 
-const API_BASE_URL = 'http://127.0.0.1:8002';
+const API_BASE_URL = 'http://127.0.0.1:8001';
+
+const renderMessageText = (text) => {
+    if (!text) return null;
+    
+    const parseFormattedText = (str) => {
+        if (!str) return '';
+        const boldParts = str.split(/\*\*([^*]+)\*\*/g);
+        return boldParts.flatMap((part, idx) => {
+            if (idx % 2 === 1) {
+                return <strong key={`b-${idx}`}>{part}</strong>;
+            } else {
+                const italicParts = part.split(/\*([^*]+)\*/g);
+                return italicParts.map((subPart, subIdx) => {
+                    if (subIdx % 2 === 1) {
+                        return <em key={`i-${subIdx}`}>{subPart}</em>;
+                    }
+                    return subPart;
+                });
+            }
+        });
+    };
+
+    const lines = text.split('\n');
+    let inList = false;
+    let listItems = [];
+    const elements = [];
+
+    lines.forEach((line, lineIdx) => {
+        const trimmed = line.trim();
+        const isListItem = trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ');
+        
+        if (isListItem) {
+            if (!inList) {
+                inList = true;
+                listItems = [];
+            }
+            const itemText = trimmed.replace(/^[\*\-•]\s+/, '');
+            listItems.push(<li key={`li-${lineIdx}`} style={{ marginBottom: '6px' }}>{parseFormattedText(itemText)}</li>);
+        } else {
+            if (inList) {
+                elements.push(
+                    <ul key={`ul-${lineIdx}`} style={{ margin: '8px 0 8px 20px', padding: 0, listStyleType: 'disc' }}>
+                        {listItems}
+                    </ul>
+                );
+                inList = false;
+            }
+            if (trimmed) {
+                if (trimmed.startsWith('#')) {
+                    const headingText = trimmed.replace(/^#+\s+/, '');
+                    elements.push(
+                        <h4 key={`h-${lineIdx}`} style={{ margin: '14px 0 8px 0', fontWeight: 800, color: '#2C2A27', fontSize: '15px' }}>
+                            {parseFormattedText(headingText)}
+                        </h4>
+                    );
+                } else {
+                    elements.push(
+                        <p key={`p-${lineIdx}`} style={{ margin: '6px 0', lineHeight: 1.5 }}>
+                            {parseFormattedText(line)}
+                        </p>
+                    );
+                }
+            } else {
+                elements.push(<div key={`br-${lineIdx}`} style={{ height: '8px' }} />);
+            }
+        }
+    });
+
+    if (inList) {
+        elements.push(
+            <ul key={`ul-end`} style={{ margin: '8px 0 8px 20px', padding: 0, listStyleType: 'disc' }}>
+                {listItems}
+            </ul>
+        );
+    }
+
+    return <div>{elements}</div>;
+};
 
 
 function ChatWindow({ setActivePdfName }) {
@@ -142,12 +220,12 @@ function ChatWindow({ setActivePdfName }) {
 
                     // Nếu backend tìm thấy nguồn trích dẫn, nối thêm vào cuối bong bóng chat
                     if (data.sources && data.sources.length > 0) {
-                        finalText += '\n\n**Nguồn trích dẫn tìm thấy:**';
+                        finalText += '\n\n**Tài liệu nguồn trích dẫn (APA 7th):**';
                         data.sources.forEach((src, idx) => {
                             if (typeof src === 'string') {
                                 finalText += `\n[${idx + 1}] ${src}`;
                             } else {
-                                finalText += `\n[${idx + 1}] ${src.title || 'N/A'} - ${src.authors || 'N/A'} (${src.year || 'N/A'})`;
+                                finalText += `\n[${idx + 1}] ${src.authors || 'N/A'} (${src.year || '2026'}). *${src.title || 'N/A'}*. ${src.journal || 'N/A'}`;
                             }
                         });
                     }
@@ -1017,7 +1095,7 @@ function ChatWindow({ setActivePdfName }) {
                                         )}
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <div style={msgContentStyle(msg.sender)}>
-                                                {msg.text && <div>{msg.text}</div>}
+                                                {msg.text && <div>{renderMessageText(msg.text)}</div>}
                                                 {msg.file && (
                                                     <div style={{
                                                         display: 'flex',

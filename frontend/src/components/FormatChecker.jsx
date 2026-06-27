@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { FileText, Upload, Download, CheckCircle, AlertTriangle, Loader2, ArrowRight, BookOpen, Layout, Wrench, RefreshCw, X } from 'lucide-react'
 
-const API_BASE_URL = 'http://127.0.0.1:8002';
+const API_BASE_URL = 'http://127.0.0.1:8001';
 
 function FormatChecker() {
     const [file, setFile] = useState(null)
@@ -331,7 +331,20 @@ function FormatChecker() {
                         </div>
                     )}
 
-                    {/* Rule 1: Margins */}
+                    {/* Rule 1: Paper Size */}
+                    <div style={ruleItemStyle(report.is_paper_size_valid)}>
+                        {report.is_paper_size_valid ? (
+                            <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
+                        ) : (
+                            <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                        )}
+                        <div>
+                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Khổ giấy (Paper Size)</strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.paper_size_feedback}</p>
+                        </div>
+                    </div>
+
+                    {/* Rule 2: Margins */}
                     <div style={ruleItemStyle(report.is_margins_valid)}>
                         {report.is_margins_valid ? (
                             <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
@@ -339,25 +352,38 @@ function FormatChecker() {
                             <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
                         )}
                         <div>
-                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Khổ giấy & Căn lề lề trang (Margins)</strong>
+                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Căn lề lề trang (Margins)</strong>
                             <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.margins_feedback}</p>
                         </div>
                     </div>
 
-                    {/* Rule 2: Font Family & Size */}
-                    <div style={ruleItemStyle(report.is_font_valid)}>
-                        {report.is_font_valid ? (
+                    {/* Rule 3: Font Family */}
+                    <div style={ruleItemStyle(report.is_font_family_valid)}>
+                        {report.is_font_family_valid ? (
                             <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
                         ) : (
                             <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
                         )}
                         <div>
-                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Font chữ & Cỡ chữ (Font style & Size)</strong>
-                            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.font_feedback}</p>
+                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Font chữ (Font style)</strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.font_family_feedback}</p>
                         </div>
                     </div>
 
-                    {/* Rule 3: Line Spacing */}
+                    {/* Rule 4: Font Size */}
+                    <div style={ruleItemStyle(report.is_font_size_valid)}>
+                        {report.is_font_size_valid ? (
+                            <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
+                        ) : (
+                            <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                        )}
+                        <div>
+                            <strong style={{ fontSize: '13.5px', color: '#2C2A27', display: 'block' }}>Cỡ chữ (Font size)</strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.font_size_feedback}</p>
+                        </div>
+                    </div>
+
+                    {/* Rule 5: Line Spacing */}
                     <div style={ruleItemStyle(report.is_spacing_valid)}>
                         {report.is_spacing_valid ? (
                             <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
@@ -370,7 +396,7 @@ function FormatChecker() {
                         </div>
                     </div>
 
-                    {/* Rule 4: Logo Cover page check */}
+                    {/* Rule 6: Logo Cover page check */}
                     <div style={ruleItemStyle(report.is_logo_valid)}>
                         {report.is_logo_valid ? (
                             <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
@@ -383,9 +409,9 @@ function FormatChecker() {
                         </div>
                     </div>
 
-                    {/* Rule 5: References (APA 7th check) */}
-                    <div style={ruleItemStyle(report.citations_errors.length === 0)}>
-                        {report.citations_errors.length === 0 ? (
+                    {/* Rule 7: References (APA 7th check) */}
+                    <div style={ruleItemStyle(report.is_citations_valid)}>
+                        {report.is_citations_valid ? (
                             <CheckCircle size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }} />
                         ) : (
                             <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
@@ -395,6 +421,7 @@ function FormatChecker() {
                             <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#7A756B', lineHeight: 1.4, fontWeight: 500 }}>{report.citations_feedback}</p>
                         </div>
                     </div>
+
 
                     {/* Citation side-by-side analysis (UX Improvement) */}
                     {report.citations_errors && report.citations_errors.length > 0 && (
