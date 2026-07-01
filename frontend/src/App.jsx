@@ -1,15 +1,56 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import VivaPanel from './components/VivaPanel'
 import FormatChecker from './components/FormatChecker'
 import { X, FileText } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
 function App() {
   const [currentPdf, setCurrentPdf] = useState(null)
   const [currentView, setCurrentView] = useState('chat') // 'chat' or 'viva'
   const [activePdfName, setActivePdfName] = useState(null)
+  const [pdfObjectUrl, setPdfObjectUrl] = useState('')
+
+  useEffect(() => {
+    if (!activePdfName) {
+      setPdfObjectUrl('')
+      return
+    }
+
+    let isMounted = true
+    let objectUrl = ''
+
+    const loadPdf = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/pdf/${activePdfName}`, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch PDF: ${response.status}`)
+        }
+        const blob = await response.blob()
+        if (isMounted) {
+          objectUrl = URL.createObjectURL(blob)
+          setPdfObjectUrl(objectUrl)
+        }
+      } catch (error) {
+        console.error("Error loading PDF via ngrok:", error)
+      }
+    }
+
+    loadPdf()
+
+    return () => {
+      isMounted = false
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [activePdfName])
 
   return (
     <div 
@@ -150,15 +191,28 @@ function App() {
                 backgroundColor: '#FAF6EE'
               }}
             >
-              <iframe
-                src={`http://127.0.0.1:8001/api/pdf/${activePdfName}`}
-                title="PDF Modal Viewer"
-                style={{
-                  width: '100%',
+              {pdfObjectUrl ? (
+                <iframe
+                  src={pdfObjectUrl}
+                  title="PDF Modal Viewer"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   height: '100%',
-                  border: 'none'
-                }}
-              />
+                  color: '#7A756B',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif"
+                }}>
+                  Đang tải tài liệu PDF...
+                </div>
+              )}
             </div>
           </div>
         </div>

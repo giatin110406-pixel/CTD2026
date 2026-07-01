@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { FileText, Upload, Download, CheckCircle, AlertTriangle, Loader2, ArrowRight, BookOpen, Layout, Wrench, RefreshCw, X } from 'lucide-react'
 
-const API_BASE_URL = 'http://127.0.0.1:8001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
 function FormatChecker() {
     const [file, setFile] = useState(null)
