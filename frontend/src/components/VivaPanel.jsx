@@ -278,6 +278,9 @@ function VivaPanel({ currentPdf }) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/viva/start`, {
                 method: 'POST',
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: formData
             });
 
@@ -337,7 +340,10 @@ function VivaPanel({ currentPdf }) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/viva/chat`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: JSON.stringify({
                     history: updatedHistory.map(item => ({
                         sender: item.sender,

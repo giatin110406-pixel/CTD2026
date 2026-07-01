@@ -194,7 +194,10 @@ function ChatWindow({ setActivePdfName }) {
             // Gọi sang API FastAPI cổng 8001 của bạn
             const response = await fetch(`${API_BASE_URL}/api/chat`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: JSON.stringify({ message: userText }) // Truyền key "message" khớp với ChatRequest trong main.py
             });
 
@@ -389,7 +392,10 @@ function ChatWindow({ setActivePdfName }) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/compare-topic`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true"
+                },
                 body: JSON.stringify({
                     title: compareForm.title,
                     description: compareForm.description

@@ -13,3 +13,4 @@ dist/
 # 3. File rác hệ thống tự sinh ra khi chạy Python (Nên ẩn cho sạch code)
 __pycache__/
 *.pyc
+.venv

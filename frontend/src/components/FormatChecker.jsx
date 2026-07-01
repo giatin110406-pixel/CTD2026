@@ -63,6 +63,9 @@ function FormatChecker() {
         try {
             const response = await fetch(`${API_BASE_URL}/api/check-format`, {
                 method: 'POST',
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: formData,
             });
 
@@ -96,6 +99,9 @@ function FormatChecker() {
         try {
             const response = await fetch(`${API_BASE_URL}/api/fix-format`, {
                 method: 'POST',
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: formData,
             });
 
