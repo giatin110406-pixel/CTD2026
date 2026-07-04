@@ -247,24 +247,6 @@ function ChatWindow({ setActivePdfName }) {
                         }
                         return src;
                     });
-                    if (msgSources.length === 0) {
-                        let mockPdf = "thamkhao.pdf";
-                        let mockTitle = "Tài liệu tham khảo AI & RAG";
-                        if (userText.toLowerCase().includes("chương 1")) {
-                            mockPdf = "chuong1.pdf";
-                            mockTitle = "Luận văn Tốt nghiệp - Chương 1";
-                        } else if (userText.toLowerCase().includes("chương 2")) {
-                            mockPdf = "chuong2.pdf";
-                            mockTitle = "Luận văn Tốt nghiệp - Chương 2";
-                        }
-                        msgSources = [{
-                            title: mockTitle,
-                            authors: "N/A",
-                            year: "2026",
-                            journal: "N/A",
-                            pdf_name: mockPdf
-                        }];
-                    }
 
 
                     return {

@@ -8,33 +8,43 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001
 const examiners = [
     {
         id: 'examiner_methodology',
-        name: 'Prof. Ewout W. Steyerberg',
-        role: 'Chuyên gia Thống kê Y sinh & Mô hình Dự báo Lâm sàng (Erasmus University Rotterdam)',
-        avatar: 'https://research.umcutrecht.nl/custom/themes/umcu/nrdq-theme/storage/ebaa99d6-a73f-48ca-bc7a-d2a99fb9b0ee/files/MDJkMzY4ZWFi/D3X_5397Ewout_W._Steyerberg_minimal.jpg',
+        name: 'Giám khảo Phương pháp',
+        role: 'Tập trung kiểm định: Phương pháp luận, cỡ mẫu, thiết kế nghiên cứu & chống Overfitting.',
+        avatar: '/phuong_phap.png',
         bgColor: '#F2EAE0',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Chuyên gia hàng đầu về Clinical Prediction Models, Risk Stratification và Validation Studies.'
+        description: 'Chuyên gia phản biện về phương pháp nghiên cứu khoa học, mô hình hóa dữ liệu, đánh giá hiệu năng và các kiểm định thống kê.'
     },
     {
         id: 'examiner_novelty',
-        name: 'Prof. Jennifer A. Doudna',
-        role: 'Nhà Sinh học Phân tử & CRISPR Pioneer (Nobel Prize 2020, UC Berkeley)',
-        avatar: 'https://www.altoslabs.com/_next/image?url=https%3A%2F%2Fa-us.storyblok.com%2Ff%2F1016638%2F512x614%2F176c77a5ff%2Fjennifer-doudna.png&w=3840&q=75',
+        name: 'Giám khảo Đổi mới',
+        role: 'Tập trung kiểm định: Tính mới của ý tưởng, khoảng trống nghiên cứu & đổi mới công nghệ.',
+        avatar: '/doi_moi.png',
         bgColor: '#FAF6EE',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Đồng nhận giải Nobel Hóa học năm 2020 vì phát minh ra công nghệ chỉnh sửa gen CRISPR-Cas9.'
+        description: 'Chuyên gia phản biện về tính mới, tính sáng tạo đột phá, đánh giá khoảng trống tri thức và các khía cạnh đạo đức ứng dụng.'
     },
     {
         id: 'examiner_practical',
-        name: 'Prof. Atul Gawande',
-        role: 'Bác sĩ Phẫu thuật, Nhà cải tiến Chất lượng & Tác giả Y học (Harvard Medical School)',
-        avatar: 'https://bigthink.com/wp-content/uploads/2010/01/Atul-Gawande-Profile_Headshot_Final.jpg?resize=256,256',
+        name: 'Giám khảo Thực tiễn',
+        role: 'Tập trung kiểm định: Tính khả thi, khả năng chấp nhận của người dùng & chi phí vận hành.',
+        avatar: '/thuc_tien.jpg',
         bgColor: '#F2EAE0',
         color: '#2C2A27',
         accentColor: '#FFD000',
-        description: 'Chuyên gia Healthcare Systems, an toàn người bệnh và cải tiến chất lượng lâm sàng thực tế.'
+        description: 'Chuyên gia phản biện về khả năng ứng dụng thực tế, bài toán triển khai thực địa, chi phí đầu tư và mức độ chấp nhận của tổ chức.'
+    },
+    {
+        id: 'examiner_devil',
+        name: 'Giám khảo Phản biện Đối kháng',
+        role: 'Tập trung phản biện đối kháng: Rủi ro tiềm ẩn, trường hợp biên cực đoan & chất vấn logic cốt lõi.',
+        avatar: '/doi_khang.png',
+        bgColor: '#FAF6EE',
+        color: '#2C2A27',
+        accentColor: '#FFD000',
+        description: 'Chuyên gia phản biện đối kháng, thách thức các giả định, giả định tình huống xấu nhất (worst-case) và chỉ ra kẽ hở logic.'
     }
 ];
 const cleanMathExpression = (expr) => {
@@ -684,7 +694,7 @@ function VivaPanel({ currentPdf }) {
                                                         color: '#7A756B',
                                                         display: 'inline-block'
                                                     }}>
-                                                        {ex.id === 'examiner_practical' ? 'Phản biện 3' : (ex.id === 'examiner_methodology' ? 'Phản biện 1' : 'Phản biện 2')}
+                                                        {ex.id === 'examiner_methodology' ? 'Phản biện 1' : (ex.id === 'examiner_novelty' ? 'Phản biện 2' : (ex.id === 'examiner_practical' ? 'Phản biện 3' : 'Phản biện Đối kháng'))}
                                                     </span>
                                                 </div>
 
@@ -752,7 +762,7 @@ function VivaPanel({ currentPdf }) {
                                                 S
                                             </div>
                                         ) : (
-                                            examiner.avatar.startsWith('http') ? (
+                                            (examiner.avatar.startsWith('http') || examiner.avatar.startsWith('data:image')) ? (
                                                 <img
                                                     src={examiner.avatar}
                                                     alt={examiner.name}

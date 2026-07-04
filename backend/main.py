@@ -87,6 +87,10 @@ embeddings = HuggingFaceEmbeddings(
 vector_db = FAISS.load_local(FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True)
 retriever = vector_db.as_retriever(search_kwargs={"k": 4})
 
+# Khởi tạo Cross-Encoder Reranker chạy cục bộ để tăng độ chính xác ngữ cảnh (Context Precision)
+from sentence_transformers import CrossEncoder
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
 
 # 5. KHAI BÁO CẤU TRÚC DỮ LIỆU ĐẦU VÀO TỪ REACT
 class ChatRequest(BaseModel):
@@ -140,50 +144,97 @@ prompt_template = ChatPromptTemplate.from_messages([
 async def chat_with_thesis(request: ChatRequest):
     try:
         user_query = request.message
-       
-        # 1. Tìm kiếm các mảnh tài liệu liên quan từ kho FAISS
-        docs = vector_db.similarity_search(user_query, k=4)
-       
-        # 2. Đưa vào hàm custom để Gemini trả lời dựa trên ngữ cảnh
-        answer = custom_stuff_documents(llm, prompt_template, docs, user_query)
-       
-        # 3. Lấy danh sách tên file PDF độc nhất từ metadata của các docs tìm thấy
-        sources_list = []
-        seen_pdfs = set()
-        for doc in docs:
-            # Lấy tên file thực tế từ metadata (ví dụ: file_name, hoặc trích xuất từ source/pdf_path)
-            file_name = doc.metadata.get("file_name")
-            if not file_name:
-                pdf_path = doc.metadata.get("source") or doc.metadata.get("pdf_path")
-                if pdf_path:
-                    file_name = os.path.basename(pdf_path)
-            if not file_name:
-                file_name = doc.metadata.get("title", "document") + ".pdf"
+        
+        # 1. Phân loại nhanh câu hỏi bằng prompt siêu rút gọn
+        routing_prompt = f"""Phân loại câu hỏi của người dùng thành một trong hai nhãn sau:
+- "thesis": Các câu hỏi liên quan đến luận văn, nghiên cứu khoa học, tìm kiếm tài liệu học thuật hoặc các câu hỏi chuyên ngành.
+- "general": Các câu hỏi chào hỏi xã giao, giải trí, lập trình phần mềm, toán học phổ thông, đời sống hoặc bất kỳ chủ đề nào khác ngoài luận văn học thuật.
+
+Chỉ phản hồi đúng 1 từ duy nhất là "thesis" hoặc "general". Không giải thích thêm.
+Câu hỏi: {user_query}"""
+        
+        route_response = llm.invoke(routing_prompt)
+        query_type = route_response.content.strip().lower()
+        
+        # 2. Phân luồng xử lý câu hỏi
+        if "general" in query_type:
+            general_prompt = f"""Bạn là trợ lý AI thông minh hỗ trợ luận văn UEH.
+Người dùng đang hỏi bạn một câu hỏi xã giao hoặc ngoài lề. Hãy trả lời câu hỏi của họ một cách ngắn gọn, thân thiện và lịch sự.
+Lưu ý nhắc nhở nhẹ nhàng (nếu cần thiết) rằng câu hỏi này nằm ngoài phạm vi tài liệu luận văn học thuật của hệ thống.
+Câu hỏi: {user_query}"""
             
-            # Đảm bảo tên file sạch, kết thúc bằng đuôi .pdf
-            if file_name and not file_name.endswith(".pdf"):
-                file_name = file_name + ".pdf"
+            answer = llm.invoke(general_prompt).content
+            return {
+                "answer": answer,
+                "sources": [] # Trả về nguồn trống để Frontend không hiển thị tài liệu tham khảo sai lệch
+            }
+            
+        else:
+            # 3. Tìm kiếm ứng viên (k=8) từ kho FAISS kèm điểm số
+            candidates_with_scores = vector_db.similarity_search_with_score(user_query, k=8)
+            
+            # 4. Rerank ứng viên bằng Cross-Encoder cục bộ để tăng độ chính xác ngữ cảnh
+            docs = []
+            if candidates_with_scores:
+                pairs = [[user_query, doc.page_content] for doc, _ in candidates_with_scores]
+                rerank_scores = reranker.predict(pairs)
                 
-            # Đảm bảo không bị trùng lặp
-            if file_name not in seen_pdfs:
-                seen_pdfs.add(file_name)
-                title = doc.metadata.get("title", "Không rõ tiêu đề")
-                authors = doc.metadata.get("authors", "Không rõ tác giả")
-                year = doc.metadata.get("year", "2026")
-                journal = doc.metadata.get("journal", "N/A")
-                sources_list.append({
-                    "pdf_name": file_name,
-                    "title": title,
-                    "authors": authors,
-                    "year": str(year),
-                    "journal": journal
-                })
+                # Gộp tài liệu và điểm rerank
+                reranked_docs = []
+                for idx, (doc, old_score) in enumerate(candidates_with_scores):
+                    reranked_docs.append((doc, float(rerank_scores[idx])))
                 
-        # Cấu trúc dữ liệu phản hồi mới (Response Payload)
-        return {
-            "answer": answer,
-            "sources": sources_list
-        }
+                # Sắp xếp theo điểm rerank giảm dần
+                reranked_docs.sort(key=lambda x: x[1], reverse=True)
+                
+                # Lọc lấy tối đa top 4 tài liệu có điểm tương quan tốt (score >= -4.0)
+                for doc, score in reranked_docs[:4]:
+                    if score >= -4.0:
+                        docs.append(doc)
+                
+                # Dự phòng: Nếu lọc hết không còn đoạn nào, giữ lại đoạn tốt nhất để tránh context trống rỗng
+                if not docs and reranked_docs:
+                    docs = [reranked_docs[0][0]]
+            
+            # 5. Đưa vào hàm custom để Gemini trả lời dựa trên ngữ cảnh đã tối ưu
+            answer = custom_stuff_documents(llm, prompt_template, docs, user_query)
+           
+            # 5. Lấy danh sách tên file PDF độc nhất từ metadata của các docs tìm thấy
+            sources_list = []
+            seen_pdfs = set()
+            for doc in docs:
+                # Lấy tên file thực tế từ metadata (ví dụ: file_name, hoặc trích xuất từ source/pdf_path)
+                file_name = doc.metadata.get("file_name")
+                if not file_name:
+                    pdf_path = doc.metadata.get("source") or doc.metadata.get("pdf_path")
+                    if pdf_path:
+                        file_name = os.path.basename(pdf_path)
+                if not file_name:
+                    file_name = doc.metadata.get("title", "document") + ".pdf"
+                
+                # Đảm bảo tên file sạch, kết thúc bằng đuôi .pdf
+                if file_name and not file_name.endswith(".pdf"):
+                    file_name = file_name + ".pdf"
+                    
+                # Đảm bảo không bị trùng lặp
+                if file_name not in seen_pdfs:
+                    seen_pdfs.add(file_name)
+                    title = doc.metadata.get("title", "Không rõ tiêu đề")
+                    authors = doc.metadata.get("authors", "Không rõ tác giả")
+                    year = doc.metadata.get("year", "2026")
+                    journal = doc.metadata.get("journal", "N/A")
+                    sources_list.append({
+                        "pdf_name": file_name,
+                        "title": title,
+                        "authors": authors,
+                        "year": str(year),
+                        "journal": journal
+                    })
+                    
+            return {
+                "answer": answer,
+                "sources": sources_list
+            }
     except Exception as e:
         import traceback
         err_msg = str(e)
@@ -479,7 +530,7 @@ async def chat_viva(request: VivaChatRequest):
         questions_by_current = [m for m in history if m.sender == "bot" and m.examiner_id == current_examiner_id]
         questions_count = len(questions_by_current)
         
-        examiner_order = ["examiner_methodology", "examiner_novelty", "examiner_practical"]
+        examiner_order = ["examiner_methodology", "examiner_novelty", "examiner_practical", "examiner_devil"]
         current_index = examiner_order.index(current_examiner_id)
         
         pdf_context_str = f"NỘI DUNG TÀI LIỆU CỦA SINH VIÊN (PDF):\n{pdf_context}\n\n" if pdf_context else ""
@@ -865,6 +916,11 @@ def check_docx_format(docx_bytes: bytes, file_name: str) -> dict:
         if is_toc_entry_paragraph(p, text):
             is_heading = False
             
+        # Skip checking captions and notes for body text compliance (they have sizes 10pt and 11pt)
+        is_caption_or_note = False
+        if text.lower().startswith(('hình', 'ảnh', 'sơ đồ', 'biểu đồ', 'đồ thị', 'figure', 'fig', 'bảng', 'table', 'chú thích', 'nguồn', 'ghi chú', 'note', 'source')):
+            is_caption_or_note = True
+
         has_large_size = False
         run_fonts = []
         run_sizes = []
@@ -882,7 +938,7 @@ def check_docx_format(docx_bytes: bytes, file_name: str) -> dict:
             if effective_size:
                 run_sizes.append(effective_size)
                 
-        if has_large_size or is_heading:
+        if has_large_size or is_heading or is_caption_or_note:
             continue
 
             
@@ -1106,6 +1162,17 @@ def fix_docx_format(docx_bytes: bytes) -> bytes:
         section.left_margin = Cm(3.5)
         section.right_margin = Cm(2.0)
         
+    # 1.05 Tự động thu nhỏ ảnh vượt quá khung trang in khả dụng (15.5cm)
+    max_width_emu = Cm(15.5)
+    for shape in doc.inline_shapes:
+        try:
+            if shape.width and shape.width > max_width_emu:
+                ratio = float(shape.height) / float(shape.width)
+                shape.width = max_width_emu
+                shape.height = int(max_width_emu * ratio)
+        except Exception:
+            pass
+        
     def is_toc_entry_paragraph(p, text):
         style_name = p.style.name.lower()
         if style_name.startswith("toc"):
@@ -1134,15 +1201,23 @@ def fix_docx_format(docx_bytes: bytes) -> bytes:
             
         if is_image_para:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(6)
             continue
             
         if not text:
             continue
             
-        # Check if it is a caption (Hình, Bảng, Sơ đồ, Biểu đồ, Đồ thị)
-        is_caption = False
-        if text.lower().startswith(('hình', 'bảng ', 'sơ đồ', 'biểu đồ', 'đồ thị')):
-            is_caption = True
+        # Check if it is a caption/title/note
+        is_fig_title = False
+        is_tbl_title = False
+        is_tbl_note = False
+        
+        if text.lower().startswith(('chú thích', 'nguồn', 'ghi chú', 'note', 'source')):
+            is_tbl_note = True
+        elif text.lower().startswith(('hình', 'ảnh', 'sơ đồ', 'biểu đồ', 'đồ thị', 'figure', 'fig')):
+            is_fig_title = True
+        elif text.lower().startswith(('bảng', 'table')):
+            is_tbl_title = True
             
         # Protect headings
         is_heading = False
@@ -1182,13 +1257,37 @@ def fix_docx_format(docx_bytes: bytes) -> bytes:
                 run.font.name = 'Times New Roman'
             continue
             
-        if is_caption:
+        if is_fig_title:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.line_spacing = 1.2
             p.paragraph_format.space_after = Pt(6)
             for run in p.runs:
                 run.font.name = 'Times New Roman'
                 run.font.size = Pt(11)
+                run.bold = True
+                run.italic = False
+            continue
+            
+        if is_tbl_title:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.line_spacing = 1.2
+            p.paragraph_format.space_after = Pt(6)
+            for run in p.runs:
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(11)
+                run.bold = True
+                run.italic = False
+            continue
+            
+        if is_tbl_note:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.line_spacing = 1.2
+            p.paragraph_format.space_after = Pt(6)
+            for run in p.runs:
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
+                run.bold = False
+                run.italic = True
             continue
             
         # Standardize body paragraphs
@@ -1488,5 +1587,4 @@ async def fix_format(file: UploadFile = File(...)):
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Lỗi tự động sửa định dạng: {str(e)}")
 
-
-
+# Forced reload trigger to update environment API key from .env file

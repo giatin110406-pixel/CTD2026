@@ -1,0 +1,1 @@
+{"detail":"Tài khoản Gemini của bạn bị giới hạn lượt gọi (Rate Limit 429). Vui lòng thử lại sau 1-2 phút."}

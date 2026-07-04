@@ -1,0 +1,20 @@
+
+Paragraph 0: Đây là nội dung văn bản chính để kiểm tra định dạng của body. Chữ thường.
+  Alignment: JUSTIFY (3)
+  Font: Times New Roman, Size: 13.0pt
+  Bold: None, Italic: None
+
+Paragraph 1: Hình 1.1: Sơ đồ thiết kế hệ thống RAG (Hình ảnh minh họa)
+  Alignment: CENTER (1)
+  Font: Times New Roman, Size: 11.0pt
+  Bold: True, Italic: False
+
+Paragraph 2: Bảng 2.1: Bảng số liệu thống kê UEH (Thống kê chi tiết)
+  Alignment: LEFT (0)
+  Font: Times New Roman, Size: 11.0pt
+  Bold: True, Italic: False
+
+Paragraph 3: Chú thích: Số liệu được tổng hợp từ khảo sát thực tế năm 2026. (Nguồn chính thức)
+  Alignment: LEFT (0)
+  Font: Times New Roman, Size: 10.0pt
+  Bold: False, Italic: True
