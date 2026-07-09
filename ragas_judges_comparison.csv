@@ -1,0 +1,6 @@
+﻿Judge Model,Error
+Gemini 2.5 Flash,Faithfulness.__init__() missing 1 required positional argument: 'llm'
+Claude 5 Sonnet,Faithfulness.__init__() missing 1 required positional argument: 'llm'
+Claude 4.5 Haiku,Faithfulness.__init__() missing 1 required positional argument: 'llm'
+Llama 3.3 70B (Groq),Faithfulness.__init__() missing 1 required positional argument: 'llm'
+Qwen 2.5 72B (OpenRouter/Ollama),Faithfulness.__init__() missing 1 required positional argument: 'llm'
