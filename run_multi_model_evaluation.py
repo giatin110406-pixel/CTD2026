@@ -171,11 +171,6 @@ ragas_embeddings = LangchainEmbeddingsWrapper(local_emb)
 
 
 # 4. DEFINE JUDGE MODELS INITIALIZATION FUNCTIONS
-def get_gemini_judge():
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
-        raise ValueError("Missing GEMINI_API_KEY in .env")
-    return ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=key, temperature=0)
 
 
 def get_claude_judge():
@@ -234,7 +229,6 @@ def get_qwen3_next_openrouter_judge():
 
 # Dictionary of judge setup functions
 judges_config = {
-    "Gemini 2.5 Flash": get_gemini_judge,
     "Claude 5 Sonnet": get_claude_judge,
     "Claude 4.5 Haiku": get_claude_haiku_judge,
     "Llama 3.3 70B (Groq)": get_llama_groq_judge,
