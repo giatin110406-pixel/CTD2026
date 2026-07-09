@@ -1,1 +1,0 @@
-{"detail":"Lỗi máy chủ: Error calling model 'gemini-2.5-flash' (PERMISSION_DENIED): 403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'Your project has been denied access. Please contact support.', 'status': 'PERMISSION_DENIED'}}"}

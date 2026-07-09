@@ -1,4 +1,8 @@
 import os
+import sys
+if sys.platform.startswith("win"):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 from fastapi import FastAPI, HTTPException
@@ -6,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import json
 
 
 
@@ -20,6 +25,18 @@ import numpy as np
 
 
 # Tạo chuỗi xử lý RAG thủ công nhưng chạy cực kỳ ổn định
+
+
+def extract_text(content) -> str:
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and "text" in part:
+                text_parts.append(part["text"])
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return "".join(text_parts)
+    return str(content)
 
 
 def custom_stuff_documents(llm, prompt, docs, query):
@@ -38,7 +55,7 @@ def custom_stuff_documents(llm, prompt, docs, query):
             f"Tiêu đề: {title}\n"
             f"Tác giả: {authors}\n"
             f"Năm xuất bản: {year}\n"
-            f"Tạp chí/Phân hệ gốc: {journal} | Thư mục: {doc.page_content}"
+            f"Tạp chí/Phân hệ gốc: {journal}\nNội dung đoạn trích: {doc.page_content}"
         )
         context_chunks.append(chunk_info)
    
@@ -50,7 +67,7 @@ def custom_stuff_documents(llm, prompt, docs, query):
    
     # 3. Gọi Gemini xử lý thẳng danh sách tin nhắn
     response = llm.invoke(messages)
-    return response.content
+    return extract_text(response.content)
 
 
 
@@ -73,8 +90,12 @@ app.add_middleware(
 )
 
 
-# 4. NẠP KHO VECTOR FAISS (7.117 mảnh dữ liệu của bạn)
-FAISS_DB_PATH = "kho_vector_thesis"
+# 4. NẠP KHO VECTOR FAISS
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FAISS_DB_PATH = os.path.join(BASE_DIR, "kho_vector_thesis_pdr")
+if not os.path.exists(FAISS_DB_PATH):
+    FAISS_DB_PATH = os.path.join(BASE_DIR, "kho_vector_thesis")
+
 encode_kwargs = {'normalize_embeddings': True}
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -82,14 +103,46 @@ embeddings = HuggingFaceEmbeddings(
     encode_kwargs=encode_kwargs
 )
 
-
 # Tải kho vector cứng từ folder lên RAM để truy vấn siêu tốc
 vector_db = FAISS.load_local(FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True)
-retriever = vector_db.as_retriever(search_kwargs={"k": 4})
+retriever = vector_db.as_retriever(search_kwargs={"k": 10})
 
-# Khởi tạo Cross-Encoder Reranker chạy cục bộ để tăng độ chính xác ngữ cảnh (Context Precision)
-from sentence_transformers import CrossEncoder
-reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+# TẠO INDEX TF-IDF VÀ NẠP KHO TÀI LIỆU CHA NẾU CÓ (PDR SUPPORT)
+from sklearn.feature_extraction.text import TfidfVectorizer
+from langchain_core.documents import Document
+import numpy as np
+
+PARENT_STORE_PATH = os.path.join(BASE_DIR, "kho_parent_thesis.json")
+parent_store = {}
+if os.path.exists(PARENT_STORE_PATH):
+    try:
+        with open(PARENT_STORE_PATH, "r", encoding="utf-8") as f:
+            parent_store = json.load(f)
+    except Exception as e:
+        print(f"⚠️ Lỗi đọc file parent store: {e}")
+
+print("Fitting TF-IDF on database documents...")
+all_docs = list(vector_db.docstore._dict.values())
+
+if parent_store:
+    print("Using Parent Document Store for TF-IDF indexing...")
+    pdr_parent_docs = []
+    all_parent_texts = []
+    for parent_id, p_data in parent_store.items():
+        p_doc = Document(page_content=p_data["page_content"], metadata=p_data["metadata"])
+        pdr_parent_docs.append(p_doc)
+        all_parent_texts.append(p_data["page_content"])
+    
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform(all_parent_texts)
+else:
+    print("Using Child Document Store for TF-IDF indexing (fallback)...")
+    pdr_parent_docs = all_docs
+    all_texts = [doc.page_content for doc in all_docs]
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform(all_texts)
+
+print("TF-IDF Matrix fitted successfully.")
 
 
 # 5. KHAI BÁO CẤU TRÚC DỮ LIỆU ĐẦU VÀO TỪ REACT
@@ -114,18 +167,13 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3, max_retr
 
 
 # Cập nhật lại đoạn Prompt trong main.py của bạn
-system_prompt = """Bạn là một trợ lý AI chuyên nghiệp và thông minh, có nhiệm vụ hỗ trợ nghiên cứu luận văn của ĐHQG-HCM.
-Nhiệm vụ của bạn là đọc kỹ các đoạn ngữ cảnh (Context) được cung cấp, đặc biệt là thông tin tiêu đề bài báo, tác giả, lĩnh vực để tổng hợp thành câu trả lời cho người dùng.
-
+system_prompt = """Bạn là một trợ lý AI chuyên nghiệp và thông minh hỗ trợ nghiên cứu khoa học. Nhiệm vụ của bạn là đọc kỹ các đoạn ngữ cảnh (Context) được cung cấp dưới đây để trả lời câu hỏi của người dùng.
 
 HƯỚNG DẪN XỬ LÝ LOGIC (BẮT BUỘC):
-1. Khi người dùng hỏi về các hướng nghiên cứu, đề tài nghiên cứu chính hoặc xu hướng của một phân hệ (ví dụ: Khoa học Sức khỏe / Health Sci.), bạn KHÔNG ĐƯỢC từ chối nếu ngữ cảnh đã có sẵn các bài báo thuộc lĩnh vực đó.
-2. Hãy chủ động ĐỌC TIÊU ĐỀ của các bài báo xuất hiện trong ngữ cảnh (Context), dịch nghĩa/phân tích chúng và tự tổng hợp lại thành các hướng nghiên cứu lớn bằng tiếng Việt.
-   - Ví dụ nếu thấy bài về "PERITONSILLAR ABSCESS", hãy đúc kết là hướng nghiên cứu lâm sàng Tai Mũi Họng.
-   - Nếu thấy bài về "GLUCOSE MONITORING", hãy đúc kết là hướng nghiên cứu Sản khoa/Rối loạn chuyển hóa.
-   - Nếu thấy bài về "PCR conditions", hãy đúc kết là hướng ứng dụng Công nghệ sinh học.
-3. Tuyệt đối KHÔNG trả lời theo kiểu "ngữ cảnh không có thông tin chi tiết" khi danh sách bài báo đã hiển thị rõ ràng. Hãy làm việc như một chuyên gia phân tích dữ liệu thực thụ.
-
+1. TRẢ LỜI TRỰC TIẾP: Đi thẳng vào câu trả lời, tuyệt đối KHÔNG bắt đầu bằng các câu mở đầu thừa thãi như "Dựa trên ngữ cảnh được cung cấp...", "Theo tài liệu...", hoặc lời chào xã giao.
+2. CHÍNH XÁC VÀ CỤ THỂ: Trích xuất chính xác các số liệu, tên phần mềm, phương pháp nghiên cứu, tên tác giả, năm công bố, cỡ mẫu (ví dụ: "PLS-SEM", "SmartPLS 4", "405 nhân viên y tế") có trong ngữ cảnh. Không tự ý suy diễn hoặc làm tròn số liệu.
+3. NGẮN GỌN VÀ SÚC TÍCH: Chỉ tập trung trả lời đúng ý được hỏi. Tránh viết quá dài dòng hoặc đưa vào các phân tích lan man ngoài lề.
+4. XỬ LÝ HƯỚNG NGHIÊN CỨU: Khi được hỏi về hướng nghiên cứu của một phân hệ/lĩnh vực, hãy chủ động đọc tiêu đề các bài báo trong Context, phân tích và tổng hợp thành các hướng nghiên cứu lớn bằng tiếng Việt.
 
 Ngữ cảnh (Context):
 {context}"""
@@ -136,7 +184,29 @@ prompt_template = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-
+def expand_query_vietnamese(query: str) -> str:
+    expanded = query
+    abbreviations = {
+        "đổi mới sáng tạo": "ĐMST PII",
+        "năng suất lao động": "NSLĐ PRO",
+        "khoa học công nghệ": "KHCN",
+        "kinh tế xã hội": "KT-XH",
+        "kinh tế - xã hội": "KT-XH",
+        "cơ sở hạ tầng": "CSHT",
+        "tổng sản phẩm trên địa bàn": "GRDP",
+        "năng lực cạnh tranh": "PCI",
+        "hiệu quả công việc": "HQCV",
+        "sự gắn kết công việc": "GK",
+        "sự gắn bó tổ chức": "GB",
+        "khoa học xã hội và nhân văn": "KHXH&NV USSH",
+        "đại học quốc gia": "ĐHQG-HCM ĐHQG",
+        "thành phố hồ chí minh": "TP.HCM TP. Hồ Chí Minh TP HCM"
+    }
+    query_lower = query.lower()
+    for key, val in abbreviations.items():
+        if key in query_lower:
+            expanded += f" {val}"
+    return expanded
 
 
 # 7. ENDPOINT API CHÍNH (React sẽ gọi vào đây để chat)
@@ -147,14 +217,14 @@ async def chat_with_thesis(request: ChatRequest):
         
         # 1. Phân loại nhanh câu hỏi bằng prompt siêu rút gọn
         routing_prompt = f"""Phân loại câu hỏi của người dùng thành một trong hai nhãn sau:
-- "thesis": Các câu hỏi liên quan đến luận văn, nghiên cứu khoa học, tìm kiếm tài liệu học thuật hoặc các câu hỏi chuyên ngành.
-- "general": Các câu hỏi chào hỏi xã giao, giải trí, lập trình phần mềm, toán học phổ thông, đời sống hoặc bất kỳ chủ đề nào khác ngoài luận văn học thuật.
+- "thesis": Các câu hỏi liên quan đến luận văn, nghiên cứu khoa học, tài liệu học thuật, trường đại học (như ĐH KHXH&NV, ĐHQG), địa phương (Lâm Đồng, Gia Lâm), công trình xanh hoặc bất kỳ câu hỏi thực tế nào cần tìm cứu thông tin.
+- "general": Các câu hỏi chào hỏi xã giao cực kỳ ngắn (ví dụ: "chào bạn", "hello", "hi"), hoặc trò chuyện phiếm vô thưởng vô phạt không liên quan gì đến trường học/luận văn.
 
 Chỉ phản hồi đúng 1 từ duy nhất là "thesis" hoặc "general". Không giải thích thêm.
 Câu hỏi: {user_query}"""
         
         route_response = llm.invoke(routing_prompt)
-        query_type = route_response.content.strip().lower()
+        query_type = extract_text(route_response.content).strip().lower()
         
         # 2. Phân luồng xử lý câu hỏi
         if "general" in query_type:
@@ -163,38 +233,73 @@ Người dùng đang hỏi bạn một câu hỏi xã giao hoặc ngoài lề. H
 Lưu ý nhắc nhở nhẹ nhàng (nếu cần thiết) rằng câu hỏi này nằm ngoài phạm vi tài liệu luận văn học thuật của hệ thống.
 Câu hỏi: {user_query}"""
             
-            answer = llm.invoke(general_prompt).content
+            general_response = llm.invoke(general_prompt)
+            answer = extract_text(general_response.content)
             return {
                 "answer": answer,
                 "sources": [] # Trả về nguồn trống để Frontend không hiển thị tài liệu tham khảo sai lệch
             }
             
         else:
-            # 3. Tìm kiếm ứng viên (k=8) từ kho FAISS kèm điểm số
-            candidates_with_scores = vector_db.similarity_search_with_score(user_query, k=8)
+            expanded_query = expand_query_vietnamese(user_query)
+            # 3. Tìm kiếm Vector (Dense) - Lấy Top 15 ứng viên từ FAISS (đoạn Con)
+            raw_vector_results = vector_db.similarity_search_with_score(expanded_query, k=15)
             
-            # 4. Rerank ứng viên bằng Cross-Encoder cục bộ để tăng độ chính xác ngữ cảnh
-            docs = []
-            if candidates_with_scores:
-                pairs = [[user_query, doc.page_content] for doc, _ in candidates_with_scores]
-                rerank_scores = reranker.predict(pairs)
-                
-                # Gộp tài liệu và điểm rerank
-                reranked_docs = []
-                for idx, (doc, old_score) in enumerate(candidates_with_scores):
-                    reranked_docs.append((doc, float(rerank_scores[idx])))
-                
-                # Sắp xếp theo điểm rerank giảm dần
-                reranked_docs.sort(key=lambda x: x[1], reverse=True)
-                
-                # Lọc lấy tối đa top 4 tài liệu có điểm tương quan tốt (score >= -4.0)
-                for doc, score in reranked_docs[:4]:
-                    if score >= -4.0:
-                        docs.append(doc)
-                
-                # Dự phòng: Nếu lọc hết không còn đoạn nào, giữ lại đoạn tốt nhất để tránh context trống rỗng
-                if not docs and reranked_docs:
-                    docs = [reranked_docs[0][0]]
+            # Nếu chạy chế độ PDR, ánh xạ các đoạn Con thành đoạn Cha tương ứng
+            vector_results = []
+            if parent_store:
+                seen_parent_ids = set()
+                for doc, score in raw_vector_results:
+                    parent_id = doc.metadata.get("parent_id")
+                    if parent_id and parent_id in parent_store:
+                        if parent_id not in seen_parent_ids:
+                            seen_parent_ids.add(parent_id)
+                            p_data = parent_store[parent_id]
+                            p_doc = Document(page_content=p_data["page_content"], metadata=p_data["metadata"])
+                            vector_results.append((p_doc, score))
+                    else:
+                        vector_results.append((doc, score))
+            else:
+                vector_results = raw_vector_results[:10]
+            
+            # 4. Tìm kiếm Từ khóa (Sparse) - Sử dụng TF-IDF (trên đoạn Cha)
+            query_tfidf = tfidf_vectorizer.transform([expanded_query])
+            tfidf_similarities = cosine_similarity(query_tfidf, tfidf_matrix).flatten()
+            
+            # Lọc lấy Top 10 ứng viên có điểm TF-IDF tương đồng cao nhất
+            top_tfidf_indices = np.argsort(tfidf_similarities)[::-1][:10]
+            tfidf_results = []
+            for idx in top_tfidf_indices:
+                score = float(tfidf_similarities[idx])
+                if score > 0.05:  # Chỉ lấy các tài liệu có độ tương đồng từ khóa tối thiểu
+                    tfidf_results.append((pdr_parent_docs[idx], score))
+            
+            # 5. Phối hợp kết quả bằng Reciprocal Rank Fusion (RRF)
+            rrf_scores = {}
+            
+            # Ranks từ Vector Search
+            for rank, (doc, score) in enumerate(vector_results):
+                key = doc.page_content
+                if key not in rrf_scores:
+                    rrf_scores[key] = {"doc": doc, "score": 0.0}
+                rrf_scores[key]["score"] += 1.0 / (60 + (rank + 1))
+            
+            # Ranks từ TF-IDF Search
+            for rank, (doc, score) in enumerate(tfidf_results):
+                key = doc.page_content
+                if key not in rrf_scores:
+                    rrf_scores[key] = {"doc": doc, "score": 0.0}
+                rrf_scores[key]["score"] += 1.0 / (60 + (rank + 1))
+            
+            # Sắp xếp và chọn tài liệu tối ưu dựa trên điểm RRF (Lọc ngưỡng động để tăng Context Precision)
+            hybrid_results = list(rrf_scores.values())
+            hybrid_results.sort(key=lambda x: x["score"], reverse=True)
+            
+            docs = [item["doc"] for item in hybrid_results[:5]]
+            
+            # Dự phòng: Nếu không tìm thấy bất kỳ tài liệu nào, lấy Top 1 của FAISS
+            if not docs and vector_results:
+                docs = [vector_results[0][0]]
             
             # 5. Đưa vào hàm custom để Gemini trả lời dựa trên ngữ cảnh đã tối ưu
             answer = custom_stuff_documents(llm, prompt_template, docs, user_query)
@@ -233,7 +338,8 @@ Câu hỏi: {user_query}"""
                     
             return {
                 "answer": answer,
-                "sources": sources_list
+                "sources": sources_list,
+                "contexts": [doc.page_content for doc in docs]
             }
     except Exception as e:
         import traceback
@@ -1587,4 +1693,4 @@ async def fix_format(file: UploadFile = File(...)):
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Lỗi tự động sửa định dạng: {str(e)}")
 
-# Forced reload trigger to update environment API key from .env file
+# Forced reload trigger to update environment API key from .env file v3
