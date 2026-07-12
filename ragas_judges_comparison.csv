@@ -1,6 +1,8 @@
-﻿Judge Model,Error
-Gemini 2.5 Flash,Faithfulness.__init__() missing 1 required positional argument: 'llm'
-Claude 5 Sonnet,Faithfulness.__init__() missing 1 required positional argument: 'llm'
-Claude 4.5 Haiku,Faithfulness.__init__() missing 1 required positional argument: 'llm'
-Llama 3.3 70B (Groq),Faithfulness.__init__() missing 1 required positional argument: 'llm'
-Qwen 2.5 72B (OpenRouter/Ollama),Faithfulness.__init__() missing 1 required positional argument: 'llm'
+Judge Model,faithfulness,answer_relevancy,context_precision,answer_correctness
+GPT-4.1 Mini (GitHub),0.994,0.6027,0.5937,0.6329
+Qwen 3 (Groq),0.99,0.7683,0.4828,0.6915
+Llama 3.3 70B (Groq),0.7988,0.627,0.505,0.6125
+Zai GLM (Cerebras),0.9649,0.6795,0.4368,0.6653
+Gemma 4 31B (Google AI Studio),0.9833,0.5982,0.4844,0.6518
+DeepSeek-V4 Pro (Official API),0.9278,0.6253,0.4524,0.6571
+Claude Sonnet 5 (Official API),0.9841,0.6738,0.4444,0.6577

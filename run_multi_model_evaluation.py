@@ -21,6 +21,7 @@ sys.modules["langchain_community.chat_models.vertexai"] = dummy_vertexai
 
 try:
     from ragas import evaluate
+    from ragas.run_config import RunConfig
     # ragas.metrics is deprecated in 0.4.x → use ragas.metrics.collections
     from ragas.metrics import faithfulness, answer_relevancy, context_precision, answer_correctness
     from ragas.llms import LangchainLLMWrapper
@@ -82,6 +83,40 @@ API_URL = "http://127.0.0.1:8001/api/chat"
 INPUT_CSV = "golden_dataset.csv"
 CACHE_JSON = "cached_rag_responses.json"
 SUMMARY_CSV = "ragas_judges_comparison.csv"
+
+
+# Rate limiter for Cerebras to stay under 5 RPM limit (1 request per 12 seconds)
+cerebras_rate_limiter = None
+# Rate limiter for Groq to stay under 6K TPM limit (1 request per 12.5 seconds to space out keys completely)
+groq_rate_limiter = None
+# Rate limiter for OpenRouter to keep requests spaced out safely (1 request per 10 seconds)
+openrouter_rate_limiter = None
+# Rate limiter for Nvidia NIM to keep requests spaced out safely under the 40 RPM limit (1 request per 2 seconds)
+nvidia_rate_limiter = None
+try:
+    from langchain_core.rate_limiters import InMemoryRateLimiter
+    cerebras_rate_limiter = InMemoryRateLimiter(
+        requests_per_second=0.08,  # ~1 request every 12.5 seconds
+        check_every_n_seconds=0.1,
+        max_bucket_size=1
+    )
+    groq_rate_limiter = InMemoryRateLimiter(
+        requests_per_second=0.08,  # ~1 request every 12.5 seconds
+        check_every_n_seconds=0.1,
+        max_bucket_size=1
+    )
+    openrouter_rate_limiter = InMemoryRateLimiter(
+        requests_per_second=0.066,  # ~1 request every 15 seconds to stay safe from IP-level 16 RPM limit
+        check_every_n_seconds=0.1,
+        max_bucket_size=1
+    )
+    nvidia_rate_limiter = InMemoryRateLimiter(
+        requests_per_second=0.5,  # ~1 request every 2 seconds to keep requests moderate and safe
+        check_every_n_seconds=0.1,
+        max_bucket_size=1
+    )
+except ImportError:
+    pass
 
 
 # 2. COLLECT OR LOAD CHATBOT ANSWERS
@@ -172,67 +207,428 @@ ragas_embeddings = LangchainEmbeddingsWrapper(local_emb)
 
 # 4. DEFINE JUDGE MODELS INITIALIZATION FUNCTIONS
 
+from langchain_core.language_models.chat_models import BaseChatModel
 
-def get_claude_judge():
-    # Attempt 1: Official Anthropic API
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key:
-        if ChatAnthropic is None:
-            raise ImportError("langchain-anthropic is not installed. Run: pip install langchain-anthropic")
-        return ChatAnthropic(model="claude-sonnet-5", api_key=anthropic_key, temperature=0)
-       
-       
-    raise ValueError("Missing ANTHROPIC_API_KEY or GITHUB_TOKEN in .env for Claude Judge")
+class SequentialCompletionsChatGoogleGenerativeAI(ChatGoogleGenerativeAI):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        n = kwargs.get("n", 1)
+        if n == 1 and hasattr(self, "n") and self.n is not None:
+            n = self.n
+        if n > 1:
+            print(f"\n⚠️ Google API does not support n={n} directly for Gemma. Simulating by making {n} sequential calls with n=1...")
+            kwargs_copy = kwargs.copy()
+            kwargs_copy["n"] = 1
+            generations = []
+            for _ in range(n):
+                res = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs_copy)
+                generations.extend(res.generations)
+            from langchain_core.outputs import ChatResult
+            return ChatResult(generations=generations)
+        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        n = kwargs.get("n", 1)
+        if n == 1 and hasattr(self, "n") and self.n is not None:
+            n = self.n
+        if n > 1:
+            print(f"\n⚠️ Google API does not support async n={n} directly for Gemma. Simulating by making {n} sequential calls with n=1...")
+            kwargs_copy = kwargs.copy()
+            kwargs_copy["n"] = 1
+            generations = []
+            for _ in range(n):
+                res = await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs_copy)
+                generations.extend(res.generations)
+            from langchain_core.outputs import ChatResult
+            return ChatResult(generations=generations)
+        return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
 
-def get_claude_haiku_judge():
-    # Attempt 1: Official Anthropic API
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key:
-        if ChatAnthropic is None:
-            raise ImportError("langchain-anthropic is not installed. Run: pip install langchain-anthropic")
-        return ChatAnthropic(model="claude-haiku-4-5-20251001", api_key=anthropic_key, temperature=0)
-       
-       
-    raise ValueError("Missing ANTHROPIC_API_KEY or GITHUB_TOKEN in .env for Claude Judge")
+class RotatingGeminiChat(BaseChatModel):
+    _models: list = []
+    _current_index: int = 0
+    _lock = None
+    
+    def __init__(self, api_keys: list, chat_class=ChatGoogleGenerativeAI, **kwargs):
+        super().__init__()
+        self._models = [
+            chat_class(api_key=key, **kwargs)
+            for key in api_keys
+        ]
+        self._current_index = 0
+        self._lock = None
+        
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        retries = len(self._models)
+        while retries > 0:
+            model = self._models[self._current_index]
+            try:
+                result = model._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                # Rotate for the next call even on success to distribute load
+                self._current_index = (self._current_index + 1) % len(self._models)
+                return result
+            except Exception as e:
+                print(f"\n⚠️ API Key index {self._current_index} failed with error: {str(e)[:200]}")
+                print(f"🔄 Rotating to next key (remaining retries: {retries-1})...")
+                self._current_index = (self._current_index + 1) % len(self._models)
+                retries -= 1
+                time.sleep(1)
+        raise RuntimeError("All Gemini API keys in the rotation list failed!")
+        
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        import asyncio
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
+        async with self._lock:
+            # Set retries to at least 10 to ensure single-key setups can retry through temporary limits
+            retries = max(len(self._models) * 3, 10)
+            while retries > 0:
+                model = self._models[self._current_index]
+                try:
+                    result = await model._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                    self._current_index = (self._current_index + 1) % len(self._models)
+                    # Giãn cách 2 giây sau mỗi câu thành công để tránh lỗi dồn dập (Burst RPM/TPM)
+                    await asyncio.sleep(2)
+                    return result
+                except Exception as e:
+                    print(f"\n⚠️ Async API Key index {self._current_index} failed with error: {str(e)[:200]}")
+                    print(f"🔄 Rotating to next key (remaining retries: {retries-1})...")
+                    self._current_index = (self._current_index + 1) % len(self._models)
+                    retries -= 1
+                    # Nghỉ 5 giây khi lỗi để API "nguội" bớt trước khi thử lại
+                    await asyncio.sleep(5)
+            raise RuntimeError("All async Gemini API keys in the rotation list failed!")
+        
+    @property
+    def _llm_type(self) -> str:
+        return "rotating-gemini-chat"
 
 
+class RotatingKeyChatOpenAI(BaseChatModel):
+    _models: list = []
+    _current_index: int = 0
+    _provider_name: str = "API"
+    _lock = None
+    
+    def __init__(self, api_keys: list, provider_name: str = "API", chat_class=ChatOpenAI, **kwargs):
+        super().__init__()
+        self._provider_name = provider_name
+        self._models = [
+            chat_class(api_key=key, **kwargs)
+            for key in api_keys
+        ]
+        self._current_index = 0
+        self._lock = None
+        
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        retries = len(self._models)
+        while retries > 0:
+            model = self._models[self._current_index]
+            try:
+                result = model._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                self._current_index = (self._current_index + 1) % len(self._models)
+                return result
+            except Exception as e:
+                print(f"\n⚠️ {self._provider_name} API Key index {self._current_index} failed with error: {str(e)[:200]}")
+                print(f"🔄 Rotating to next {self._provider_name} key (remaining retries: {retries-1})...")
+                self._current_index = (self._current_index + 1) % len(self._models)
+                retries -= 1
+                time.sleep(1)
+        raise RuntimeError(f"All {self._provider_name} API keys in the rotation list failed!")
+        
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        import asyncio
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
+        async with self._lock:
+            # Set retries to at least 10 to ensure single-key setups can retry through temporary limits
+            retries = max(len(self._models) * 3, 10)
+            while retries > 0:
+                model = self._models[self._current_index]
+                try:
+                    result = await model._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                    self._current_index = (self._current_index + 1) % len(self._models)
+                    # Giãn cách 2 giây sau mỗi câu thành công để tránh lỗi dồn dập (Burst RPM/TPM)
+                    await asyncio.sleep(2)
+                    return result
+                except Exception as e:
+                    print(f"\n⚠️ Async {self._provider_name} API Key index {self._current_index} failed with error: {str(e)[:200]}")
+                    print(f"🔄 Rotating to next {self._provider_name} key (remaining retries: {retries-1})...")
+                    self._current_index = (self._current_index + 1) % len(self._models)
+                    retries -= 1
+                    # Nghỉ 5 giây khi lỗi để API "nguội" bớt trước khi thử lại
+                    await asyncio.sleep(5)
+            raise RuntimeError(f"All async {self._provider_name} API keys in the rotation list failed!")
+        
+    @property
+    def _llm_type(self) -> str:
+        return f"rotating-{self._provider_name.lower()}-chat"
 
 
-def get_llama_groq_judge():
-    groq_key = os.getenv("GROQ_API_KEY")
-    if not groq_key:
-        raise ValueError("Missing GROQ_API_KEY in .env")
-    if ChatOpenAI is None:
-        raise ImportError("langchain-openai is not installed. Run: pip install langchain-openai")
-    return ChatOpenAI(
-        model="llama-3.3-70b-versatile",
-        api_key=groq_key,
-        base_url="https://api.groq.com/openai/v1",
-        temperature=0
+def get_gemini_judge():
+    keys_str = os.getenv("GEMINI_API_KEYS", "")
+    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    
+    if not api_keys:
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_key:
+            api_keys = [gemini_key]
+            
+    if not api_keys:
+        raise ValueError("Missing GEMINI_API_KEY or GEMINI_API_KEYS in .env")
+        
+    if len(api_keys) == 1:
+        return ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            api_key=api_keys[0],
+            temperature=0,
+            max_retries=10
+        )
+        
+    return RotatingGeminiChat(
+        api_keys=api_keys,
+        model="gemini-2.5-flash",
+        temperature=0,
+        max_retries=10
     )
 
 
-def get_qwen3_next_openrouter_judge():
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if not openrouter_key:
-        raise ValueError("Missing OPENROUTER_API_KEY in .env for Qwen 3 Next Judge")
-    if ChatOpenAI is None:
-        raise ImportError("langchain-openai is not installed. Run: pip install langchain-openai")
+class TemperatureFreeChatAnthropic(ChatAnthropic if ChatAnthropic is not None else object):
+    def _get_request_payload(self, messages, *, stop=None, **kwargs):
+        kwargs.pop("temperature", None)
+        payload = super()._get_request_payload(messages, stop=stop, **kwargs)
+        payload.pop("temperature", None)
+        return payload
+
+
+def get_claude_judge():
+    # Official Anthropic API
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        raise ValueError("Missing ANTHROPIC_API_KEY in .env for Claude Judge")
+        
+    if ChatAnthropic is None:
+        raise ImportError("langchain-anthropic is not installed. Run: pip install langchain-anthropic")
+    return TemperatureFreeChatAnthropic(model="claude-sonnet-5", api_key=anthropic_key)
+
+
+def get_gpt4_1_mini_github_judge():
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        raise ValueError("Missing GITHUB_TOKEN in .env")
     return ChatOpenAI(
-        model="qwen/qwen3-next-80b-a3b-instruct",
-        api_key=openrouter_key,
-        base_url="https://openrouter.ai/api/v1",
-        temperature=0
+        model="gpt-4.1-mini",
+        api_key=github_token,
+        base_url="https://models.inference.ai.azure.com",
+        temperature=0,
+        max_retries=10,
+        timeout=60
+    )
+
+
+def get_llama_groq_judge():
+    keys_str = os.getenv("GROQ_API_KEYS", "")
+    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    
+    if not api_keys:
+        # Fallback: check individual keys
+        key_llama = os.getenv("GROQ_API_KEY_LLAMA")
+        key_qwen = os.getenv("GROQ_API_KEY_QWEN")
+        api_keys = [k for k in [key_llama, key_qwen] if k]
+        
+    if not api_keys:
+        raise ValueError("Missing GROQ_API_KEYS or GROQ_API_KEY_LLAMA/QWEN in .env")
+        
+    if len(api_keys) == 1:
+        kwargs = {
+            "model": "llama-3.3-70b-versatile",
+            "api_key": api_keys[0],
+            "base_url": "https://api.groq.com/openai/v1",
+            "temperature": 0,
+            "max_retries": 10,
+            "timeout": 60,
+            "max_tokens": 3000
+        }
+        if groq_rate_limiter is not None:
+            kwargs["rate_limiter"] = groq_rate_limiter
+        return ChatOpenAI(**kwargs)
+        
+    kwargs = {
+        "model": "llama-3.3-70b-versatile",
+        "base_url": "https://api.groq.com/openai/v1",
+        "temperature": 0,
+        "max_retries": 10,
+        "timeout": 60,
+        "max_tokens": 3000
+    }
+    if groq_rate_limiter is not None:
+        kwargs["rate_limiter"] = groq_rate_limiter
+    return RotatingKeyChatOpenAI(api_keys=api_keys, provider_name="Groq", **kwargs)
+
+
+def get_qwen_groq_judge():
+    keys_str = os.getenv("GROQ_API_KEYS", "")
+    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    
+    if not api_keys:
+        groq_key = os.getenv("GROQ_API_KEY_QWEN")
+        if groq_key:
+            api_keys = [groq_key]
+            
+    if not api_keys:
+        raise ValueError("Missing GROQ_API_KEYS or GROQ_API_KEY_QWEN in .env")
+        
+    if len(api_keys) == 1:
+        kwargs = {
+            "model": "qwen/qwen3-32b", # Khớp với MODEL ID trên Groq Console
+            "api_key": api_keys[0],
+            "base_url": "https://api.groq.com/openai/v1",
+            "temperature": 0,
+            "max_retries": 12, # Tăng số lần thử lại khi gặp lỗi 429
+            "timeout": 60,
+            "max_tokens": 3000
+        }
+        if groq_rate_limiter is not None:
+            kwargs["rate_limiter"] = groq_rate_limiter
+        return ChatOpenAI(**kwargs)
+        
+    kwargs = {
+        "model": "qwen/qwen3-32b",
+        "base_url": "https://api.groq.com/openai/v1",
+        "temperature": 0,
+        "max_retries": 12,
+        "timeout": 60,
+        "max_tokens": 3000
+    }
+    if groq_rate_limiter is not None:
+        kwargs["rate_limiter"] = groq_rate_limiter
+    return RotatingKeyChatOpenAI(api_keys=api_keys, provider_name="Groq", **kwargs)
+
+class SequentialCompletionsChatOpenAI(ChatOpenAI):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        # Kiểm tra nếu 'n' được truyền trong kwargs hoặc được đặt ở class level và > 1
+        n = kwargs.get("n", 1)
+        if n == 1 and hasattr(self, "n") and self.n is not None:
+            n = self.n
+            
+        if n > 1:
+            print(f"\n⚠️ Endpoint does not support n={n}. Simulating by making {n} sequential calls with n=1...")
+            kwargs_copy = kwargs.copy()
+            kwargs_copy["n"] = 1
+            generations = []
+            for _ in range(n):
+                res = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs_copy)
+                generations.extend(res.generations)
+            from langchain_core.outputs import ChatResult
+            return ChatResult(generations=generations)
+            
+        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        n = kwargs.get("n", 1)
+        if n == 1 and hasattr(self, "n") and self.n is not None:
+            n = self.n
+            
+        if n > 1:
+            print(f"\n⚠️ Endpoint does not support async n={n}. Simulating by making {n} sequential calls with n=1...")
+            kwargs_copy = kwargs.copy()
+            kwargs_copy["n"] = 1
+            generations = []
+            for _ in range(n):
+                res = await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs_copy)
+                generations.extend(res.generations)
+            from langchain_core.outputs import ChatResult
+            return ChatResult(generations=generations)
+            
+        return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+def get_zai_glm_cerebras_judge():
+    cerebras_key = os.getenv("CEREBRAS_API_KEY")
+    if not cerebras_key:
+        raise ValueError("Missing CEREBRAS_API_KEY in .env")
+    
+    kwargs = {
+        "model": "zai-glm-4.7",
+        "api_key": cerebras_key,
+        "base_url": "https://api.cerebras.ai/v1",
+        "temperature": 0,
+        "max_retries": 10,
+        "timeout": 60
+    }
+    if cerebras_rate_limiter is not None:
+        kwargs["rate_limiter"] = cerebras_rate_limiter
+        
+    return SequentialCompletionsChatOpenAI(**kwargs)
+
+
+def get_gemma_google_judge():
+    keys_str = os.getenv("GEMINI_API_KEYS", "")
+    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    
+    if not api_keys:
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_key:
+            api_keys = [gemini_key]
+            
+    if not api_keys:
+        raise ValueError("Missing GEMINI_API_KEY or GEMINI_API_KEYS in .env")
+        
+    model_name = "gemma-4-31b-it"
+    
+    if len(api_keys) == 1:
+        return SequentialCompletionsChatGoogleGenerativeAI(
+            model=model_name,
+            api_key=api_keys[0],
+            temperature=0,
+            timeout=180,      # Thiết lập timeout lớn để g Gemma có thời gian suy nghĩ
+            max_retries=15
+        )
+        
+    return RotatingGeminiChat(
+        api_keys=api_keys,
+        chat_class=SequentialCompletionsChatGoogleGenerativeAI,
+        model=model_name,
+        temperature=0,
+        timeout=180,      # Thiết lập timeout lớn cho cả bộ xoay vòng
+        max_retries=15
+    )
+
+
+def get_deepseek_official_judge():
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    if not deepseek_key:
+        raise ValueError("Missing DEEPSEEK_API_KEY in .env. Vui lòng điền API key chính chủ của DeepSeek.")
+        
+    kwargs = {
+        "model": "deepseek-v4-pro",
+        "base_url": "https://api.deepseek.com",
+        "temperature": 0,
+        "max_retries": 10,
+        "timeout": 180,
+        "max_tokens": 3000
+    }
+    
+    # Sử dụng RotatingKeyChatOpenAI với 1 key duy nhất để kế thừa bộ khóa tuần tự (asyncio.Lock)
+    return RotatingKeyChatOpenAI(
+        api_keys=[deepseek_key],
+        provider_name="DeepSeekOfficial",
+        chat_class=SequentialCompletionsChatOpenAI,
+        **kwargs
     )
 
 
 # Dictionary of judge setup functions
 judges_config = {
-    "Claude 5 Sonnet": get_claude_judge,
-    "Claude 4.5 Haiku": get_claude_haiku_judge,
-    "Llama 3.3 70B (Groq)": get_llama_groq_judge,
-    "Qwen 3 Next (OpenRouter)": get_qwen3_next_openrouter_judge
+    # "Gemini 2.5 Flash (Google)": get_gemini_judge, # Tạm thời ẩn theo yêu cầu của user
+    "Claude Sonnet 5 (Official API)": get_claude_judge,
+    # "GPT-4.1 Mini (GitHub)": get_gpt4_1_mini_github_judge, # Đã chạy xong và lưu file ragas_results_gpt-4.1_mini_github.csv
+    # "Qwen 3 (Groq)": get_qwen_groq_judge, # Đã chạy xong và lưu file ragas_results_qwen_3_groq.csv
+    # "Llama 3.3 70B (Groq)": get_llama_groq_judge, # Đã chạy xong và lưu file ragas_results_llama_3.3_70b_groq.csv
+    # "Zai GLM (Cerebras)": get_zai_glm_cerebras_judge, # Đã chạy xong và lưu file ragas_results_zai_glm_cerebras.csv
+    # "Gemma 4 31B (Google AI Studio)": get_gemma_google_judge, # Đã chạy xong và lưu file ragas_results_gemma_4_31b_google_ai_studio.csv
+    # "DeepSeek-V4 Pro (Official API)": get_deepseek_official_judge
 }
 
 
@@ -250,11 +646,13 @@ for name, init_fn in judges_config.items():
         llm = init_fn()
         ragas_judge = LangchainLLMWrapper(llm)
        
-        # Evaluate
-        # batch_size=1: process questions sequentially to avoid free-tier rate limits (429)
-        # column_map: Ragas 0.4.x renamed columns (question→user_input, answer→response,
-        #             contexts→retrieved_contexts, ground_truth→reference)
-        print("Running Ragas metrics (faithfulness, answer_relevancy, context_precision, answer_correctness)...")
+        # Define run config to control concurrency and retries to avoid rate limits (429)
+        run_config = RunConfig(
+            max_workers=1,  # limit concurrency to stay under strict Groq TPM limits
+            timeout=480,    # Tăng lên 480 giây (8 phút) cho các model suy luận chậm như Gemma
+            max_retries=10
+        )
+
         result = evaluate(
             dataset=dataset,
             metrics=[faithfulness, answer_relevancy, context_precision, answer_correctness],
@@ -266,7 +664,8 @@ for name, init_fn in judges_config.items():
                 "retrieved_contexts": "contexts",
                 "reference": "ground_truth"
             },
-            batch_size=1
+            batch_size=1,
+            run_config=run_config
         )
        
         # Save individual CSV

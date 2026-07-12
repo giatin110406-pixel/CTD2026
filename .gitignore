@@ -20,4 +20,5 @@ Thumbs.db
 
 # Temporary scratch files
 scratch/
+ragas_judges_comparison_backup.csv
 
