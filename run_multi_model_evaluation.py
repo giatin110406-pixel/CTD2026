@@ -622,10 +622,10 @@ def get_deepseek_official_judge():
 # Dictionary of judge setup functions
 judges_config = {
     # "Gemini 2.5 Flash (Google)": get_gemini_judge, # Tạm thời ẩn theo yêu cầu của user
-    "Claude Sonnet 5 (Official API)": get_claude_judge,
+    # "Claude Sonnet 5 (Official API)": get_claude_judge,
     # "GPT-4.1 Mini (GitHub)": get_gpt4_1_mini_github_judge, # Đã chạy xong và lưu file ragas_results_gpt-4.1_mini_github.csv
     # "Qwen 3 (Groq)": get_qwen_groq_judge, # Đã chạy xong và lưu file ragas_results_qwen_3_groq.csv
-    # "Llama 3.3 70B (Groq)": get_llama_groq_judge, # Đã chạy xong và lưu file ragas_results_llama_3.3_70b_groq.csv
+    "Llama 3.3 70B (Groq)": get_llama_groq_judge, # Đã chạy xong và lưu file ragas_results_llama_3.3_70b_groq.csv
     # "Zai GLM (Cerebras)": get_zai_glm_cerebras_judge, # Đã chạy xong và lưu file ragas_results_zai_glm_cerebras.csv
     # "Gemma 4 31B (Google AI Studio)": get_gemma_google_judge, # Đã chạy xong và lưu file ragas_results_gemma_4_31b_google_ai_studio.csv
     # "DeepSeek-V4 Pro (Official API)": get_deepseek_official_judge

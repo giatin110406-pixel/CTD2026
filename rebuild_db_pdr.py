@@ -26,11 +26,17 @@ embeddings = HuggingFaceEmbeddings(
     encode_kwargs=encode_kwargs
 )
 
-print("✂️ Đang cấu hình bộ chia tài liệu Cha - Con (Parent - Child Splitter)...")
-# Parent chunks: Lưu trữ thông tin lớn (1000 ký tự) để Gemini có đầy đủ ngữ cảnh để đọc hiểu
-parent_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+print("✂️ Đang cấu hình bộ chia tài liệu Cha - Con (Semantic Parent - Recursive Child Splitter)...")
+from langchain_experimental.text_splitter import SemanticChunker
+# Parent chunks: Cắt theo mạch ý nghĩa ngữ nghĩa (Semantic Chunker) giúp giữ nguyên ngữ cảnh đầy đủ
+parent_splitter = SemanticChunker(
+    embeddings=embeddings,
+    breakpoint_threshold_type="standard_deviation",
+    breakpoint_threshold_amount=1.25
+)
 # Child chunks: Cắt cực mịn (250 ký tự) giúp khớp ngữ nghĩa và từ khóa chính xác nhất
 child_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
+
 
 all_child_chunks = []
 parent_store = {}
