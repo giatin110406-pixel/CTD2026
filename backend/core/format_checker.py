@@ -346,7 +346,7 @@ Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc như s
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.5-flash",
                 contents=img_parts + [prompt]
             )
             result = parse_json_from_llm(response.text)
@@ -390,7 +390,7 @@ If all references are correct, return true for "is_citations_valid" and empty li
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.5-flash",
                 contents=prompt
             )
             result = parse_json_from_llm(response.text)
@@ -635,7 +635,7 @@ Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.5-flash",
             contents=[
                 types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
                 prompt
@@ -782,7 +782,7 @@ If all references are correct, return true for "is_citations_valid" and empty li
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.5-flash",
                 contents=prompt
             )
             result = parse_json_from_llm(response.text)

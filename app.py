@@ -90,7 +90,7 @@ Trả lời:'''
         for attempt in range(max_retries):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.5-flash",
                     contents=prompt_template,
                     config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=2500)
                 )

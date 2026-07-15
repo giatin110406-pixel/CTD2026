@@ -380,7 +380,7 @@ def get_gemini_judge():
         
     if len(api_keys) == 1:
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-3.5-flash",
             api_key=api_keys[0],
             temperature=0,
             max_retries=10
@@ -388,7 +388,7 @@ def get_gemini_judge():
         
     return RotatingGeminiChat(
         api_keys=api_keys,
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         temperature=0,
         max_retries=10
     )
