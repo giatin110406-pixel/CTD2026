@@ -93,11 +93,13 @@ class RotatingChatGoogleGenerativeAI:
 
     def invoke(self, messages, *args, **kwargs):
         max_attempts = len(self.api_keys)
+        response = None
         for attempt in range(max_attempts):
             if not self.api_keys:
                 break
             try:
-                return self.llm.invoke(messages, *args, **kwargs)
+                response = self.llm.invoke(messages, *args, **kwargs)
+                break
             except Exception as e:
                 err_msg = str(e).lower()
                 
@@ -129,16 +131,29 @@ class RotatingChatGoogleGenerativeAI:
                     raise e
                     
         # If all Gemini keys fail, try DeepSeek fallback
-        global deepseek_fallback_llm
-        if deepseek_fallback_llm:
-            print("[Rotating API Key] [Fallback] All Gemini API keys failed or were blacklisted. Attempting fallback call to DeepSeek...")
-            try:
-                return deepseek_fallback_llm.invoke(messages, *args, **kwargs)
-            except Exception as ds_err:
-                print(f"[Rotating API Key] [Fallback] DeepSeek fallback call also failed: {ds_err}")
-                raise ds_err
-                
-        raise RuntimeError("All configured Gemini API keys have been exhausted and no fallback LLM is configured.")
+        if response is None:
+            global deepseek_fallback_llm
+            if deepseek_fallback_llm:
+                print("[Rotating API Key] [Fallback] All Gemini API keys failed or were blacklisted. Attempting fallback call to DeepSeek...")
+                try:
+                    response = deepseek_fallback_llm.invoke(messages, *args, **kwargs)
+                except Exception as ds_err:
+                    print(f"[Rotating API Key] [Fallback] DeepSeek fallback call also failed: {ds_err}")
+                    raise ds_err
+            else:
+                raise RuntimeError("All configured Gemini API keys have been exhausted and no fallback LLM is configured.")
+
+        # Normalize response.content to be a plain string if it is a list of blocks
+        if response and hasattr(response, "content") and isinstance(response.content, list):
+            text_parts = []
+            for block in response.content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            response.content = "".join(text_parts)
+
+        return response
 
     def __getattr__(self, name):
         return getattr(self.llm, name)
