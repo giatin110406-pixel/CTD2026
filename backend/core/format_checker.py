@@ -1,3 +1,20 @@
+import json
+
+def parse_json_from_llm(content: str):
+    content = content.strip()
+    if content.startswith("```json"):
+        content = content[7:]
+    elif content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    content = content.strip()
+    try:
+        return json.loads(content)
+    except Exception:
+        # Fallback in case LLM output isn't valid JSON
+        return {}
+
 def check_docx_format(docx_bytes: bytes, file_name: str) -> dict:
     import docx
 
