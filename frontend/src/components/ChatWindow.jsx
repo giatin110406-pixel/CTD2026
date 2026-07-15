@@ -221,17 +221,7 @@ function ChatWindow({ setActivePdfName }) {
                     let finalText = data.answer; // Lấy câu trả lời động từ Gemini
 
 
-                    // Nếu backend tìm thấy nguồn trích dẫn, nối thêm vào cuối bong bóng chat
-                    if (data.sources && data.sources.length > 0) {
-                        finalText += '\n\n**Tài liệu nguồn trích dẫn (APA 7th):**';
-                        data.sources.forEach((src, idx) => {
-                            if (typeof src === 'string') {
-                                finalText += `\n[${idx + 1}] ${src}`;
-                            } else {
-                                finalText += `\n[${idx + 1}] ${src.authors || 'N/A'} (${src.year || '2026'}). *${src.title || 'N/A'}*. ${src.journal || 'N/A'}`;
-                            }
-                        });
-                    }
+                    // Không nối thêm text APA thô vào chat nữa, chúng ta sẽ render trực tiếp ở giao diện bên dưới dưới dạng click được.
 
 
                     // Tự động gán danh sách nguồn tài liệu tham khảo thực tế từ RAG hoặc mock, chuẩn hóa sang object để tương thích
@@ -1112,26 +1102,64 @@ function ChatWindow({ setActivePdfName }) {
 
                                             {/* Danh sách các tài liệu trích dẫn nguồn RAG (người dùng click để xem trực tiếp) */}
                                             {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-                                                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#7A756B', marginLeft: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Paperclip size={13} style={{ color: '#7A756B' }} /> Tài liệu nguồn trích dẫn (click để xem PDF):
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    flexDirection: 'column', 
+                                                    gap: '8px', 
+                                                    marginTop: '16px',
+                                                    paddingTop: '12px',
+                                                    borderTop: '1px solid rgba(122, 117, 107, 0.1)'
+                                                }}>
+                                                    <span style={{ 
+                                                        fontSize: '11px', 
+                                                        fontWeight: 700, 
+                                                        color: '#7A756B', 
+                                                        marginLeft: '4px', 
+                                                        textTransform: 'uppercase', 
+                                                        letterSpacing: '0.5px', 
+                                                        display: 'inline-flex', 
+                                                        alignItems: 'center', 
+                                                        gap: '6px' 
+                                                    }}>
+                                                        <Paperclip size={13} style={{ color: '#7A756B' }} /> Tài liệu nguồn trích dẫn (Click để xem trực tiếp PDF):
                                                     </span>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                         {msg.sources.map((src, idx) => {
                                                             if (!src.pdf_name) return null;
+                                                            const apaText = typeof src === 'string' 
+                                                                ? src 
+                                                                : `[${idx + 1}] ${src.authors || 'N/A'} (${src.year || '2026'}). ${src.title || 'N/A'}. ${src.journal || 'N/A'}`;
                                                             return (
                                                                 <div
                                                                     key={idx}
-                                                                    style={citationBadgeStyle}
                                                                     onClick={() => setActivePdfName(src.pdf_name)}
-                                                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2C2A27'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#FFD000'; }}
-                                                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FAF6EE'; e.currentTarget.style.color = '#2C2A27'; e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.2)'; }}
+                                                                    style={{
+                                                                        fontSize: '12px',
+                                                                        padding: '8px 12px',
+                                                                        borderRadius: '8px',
+                                                                        backgroundColor: 'rgba(250, 246, 238, 0.5)',
+                                                                        border: '1px solid rgba(122, 117, 107, 0.1)',
+                                                                        cursor: 'pointer',
+                                                                        transition: 'all 0.2s ease',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '8px',
+                                                                        color: '#2C2A27'
+                                                                    }}
+                                                                    onMouseEnter={(e) => { 
+                                                                        e.currentTarget.style.backgroundColor = 'rgba(44, 42, 39, 0.05)'; 
+                                                                        e.currentTarget.style.borderColor = '#FFD000';
+                                                                        e.currentTarget.style.transform = 'translateX(4px)';
+                                                                    }}
+                                                                    onMouseLeave={(e) => { 
+                                                                        e.currentTarget.style.backgroundColor = 'rgba(250, 246, 238, 0.5)'; 
+                                                                        e.currentTarget.style.borderColor = 'rgba(122, 117, 107, 0.1)';
+                                                                        e.currentTarget.style.transform = 'none';
+                                                                    }}
                                                                     title={`Xem tệp ${src.pdf_name}`}
                                                                 >
-                                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                        <Paperclip size={13} />
-                                                                        [{idx + 1}] {src.pdf_name}
-                                                                    </span>
+                                                                    <Paperclip size={13} style={{ color: '#7A756B', flexShrink: 0 }} />
+                                                                    <span style={{ lineHeight: '1.4' }}>{apaText}</span>
                                                                 </div>
                                                             );
                                                         })}
