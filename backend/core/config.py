@@ -159,3 +159,65 @@ class RotatingChatGoogleGenerativeAI:
         return getattr(self.llm, name)
 
 llm = RotatingChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.3, max_retries=3)
+
+def generate_content_with_rotation(contents, model="gemini-3.5-flash", **kwargs):
+    """Calls the Google GenAI SDK Client models.generate_content using key rotation on failure."""
+    from google import genai
+    max_attempts = len(llm.api_keys)
+    for attempt in range(max_attempts):
+        if not llm.api_keys:
+            break
+        try:
+            active_key = llm.api_keys[llm.current_key_index]
+            client = genai.Client(api_key=active_key)
+            return client.models.generate_content(model=model, contents=contents, **kwargs)
+        except Exception as e:
+            err_msg = str(e).lower()
+            is_permanent = any(x in err_msg for x in ["403", "401", "404", "permission_denied", "unauthorized"])
+            is_transient = any(x in err_msg for x in ["429", "500", "503", "rate_limit", "quota", "resource_exhausted"])
+            
+            should_rotate = is_permanent or is_transient
+            if should_rotate and attempt < max_attempts - 1:
+                if is_permanent:
+                    print(f"[Rotating API Key] Permanent error on key {llm.current_key_index} during SDK call. Blacklisting key...")
+                    llm.remove_current_key()
+                else:
+                    print(f"[Rotating API Key] Transient error on key {llm.current_key_index} during SDK call. Rotating key...")
+                    llm.rotate_key()
+            else:
+                raise e
+    
+    # Try DeepSeek fallback if all Gemini keys fail
+    try:
+        deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+        if deepseek_key:
+            print("[Rotating API Key] [Fallback] All Gemini API keys failed during SDK call. Attempting fallback call to DeepSeek...")
+            from openai import OpenAI
+            client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com")
+            
+            prompt_text = ""
+            if isinstance(contents, list):
+                text_parts = []
+                for item in contents:
+                    if isinstance(item, str):
+                        text_parts.append(item)
+                    elif hasattr(item, "text"):
+                        text_parts.append(item.text)
+                prompt_text = "\n".join(text_parts)
+            else:
+                prompt_text = str(contents)
+                
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt_text}],
+                temperature=0.3
+            )
+            class MockResponse:
+                def __init__(self, text):
+                    self.text = text
+            return MockResponse(response.choices[0].message.content)
+    except Exception as ds_err:
+        print(f"[Rotating API Key] [Fallback] DeepSeek fallback SDK call also failed: {ds_err}")
+        
+    raise RuntimeError("All configured Gemini API keys have been exhausted during SDK call and no fallback succeeded.")
+

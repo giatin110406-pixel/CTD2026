@@ -330,9 +330,6 @@ def check_docx_format(docx_bytes: bytes, file_name: str) -> dict:
         
     if img_parts:
         try:
-            api_key = os.getenv("GEMINI_API_KEY")
-            client = genai.Client(api_key=api_key)
-            
             prompt = """Bạn là chuyên gia thẩm định văn bản của trường Đại học Kinh tế TP.HCM (UEH).
 Hãy phân tích các hình ảnh được tải lên (được trích xuất từ trang bìa luận văn của sinh viên) và xác định xem:
 1. Có hình ảnh nào chứa Logo chính thức hiện tại của trường Đại học Kinh tế TP.HCM (UEH) hay không?
@@ -345,7 +342,8 @@ Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc như s
 }
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
-            response = client.models.generate_content(
+            from core.config import generate_content_with_rotation
+            response = generate_content_with_rotation(
                 model="gemini-3.5-flash",
                 contents=img_parts + [prompt]
             )
@@ -364,9 +362,6 @@ Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay gi�
     if bibliography_text:
         bib_lines_str = "\n".join(bibliography_text[:25])
         try:
-            api_key = os.getenv("GEMINI_API_KEY")
-            client = genai.Client(api_key=api_key)
-            
             prompt = f"""Bạn là chuyên gia thẩm định tài liệu tham khảo học thuật.
 Hãy đối chiếu danh sách tài liệu tham khảo dưới đây của sinh viên UEH và chỉ ra các lỗi sai so với chuẩn APA 7th hoặc Harvard (như thiếu in nghiêng tên sách/tạp chí, sai thứ tự tên tác giả, năm xuất bản...).
 
@@ -389,7 +384,8 @@ Phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
 If all references are correct, return true for "is_citations_valid" and empty list for "errors".
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
-            response = client.models.generate_content(
+            from core.config import generate_content_with_rotation
+            response = generate_content_with_rotation(
                 model="gemini-3.5-flash",
                 contents=prompt
             )
@@ -612,9 +608,6 @@ def check_pdf_format(pdf_bytes: bytes, file_name: str) -> dict:
     logo_feedback = "Không thể xác minh logo trang bìa PDF."
     
     try:
-        api_key = os.getenv("GEMINI_API_KEY")
-        client = genai.Client(api_key=api_key)
-        
         page = doc[0]
         pix = page.get_pixmap(dpi=150)
         img_bytes = pix.tobytes("png")
@@ -634,7 +627,8 @@ Hãy phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
 }
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
-        response = client.models.generate_content(
+        from core.config import generate_content_with_rotation
+        response = generate_content_with_rotation(
             model="gemini-3.5-flash",
             contents=[
                 types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
@@ -756,9 +750,6 @@ Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay gi�
     if bibliography_text:
         bib_lines_str = "\n".join(bibliography_text[:25])
         try:
-            api_key = os.getenv("GEMINI_API_KEY")
-            client = genai.Client(api_key=api_key)
-            
             prompt = f"""Bạn là chuyên gia thẩm định tài liệu tham khảo học thuật.
 Hãy đối chiếu danh sách tài liệu tham khảo dưới đây của sinh viên UEH và chỉ ra các lỗi sai so với chuẩn APA 7th hoặc Harvard (như thiếu in nghiêng tên sách/tạp chí, sai thứ tự tên tác giả, năm xuất bản...).
 
@@ -781,7 +772,8 @@ Phản hồi DUY NHẤT ở định dạng JSON thô có cấu trúc sau:
 If all references are correct, return true for "is_citations_valid" and empty list for "errors".
 Tuyệt đối chỉ trả về chuỗi JSON thô, không kèm markdown hay giải thích nào khác."""
 
-            response = client.models.generate_content(
+            from core.config import generate_content_with_rotation
+            response = generate_content_with_rotation(
                 model="gemini-3.5-flash",
                 contents=prompt
             )
